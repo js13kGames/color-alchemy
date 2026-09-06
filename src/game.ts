@@ -156,10 +156,10 @@ function saveCodex(): void {
 
 /* -------------------------------------------------------------------- HUD */
 function hud(): void {
-  mv.textContent = String(moves);
-  ct.textContent = order.length + " / " + ELEMENTS.length;
+  mv.innerHTML = String(moves);
+  ct.innerHTML = order.length + " / " + ELEMENTS.length;
   const q = cell[S_QUEST];
-  bq.textContent = q ? "Best quest: " + q : "";
+  bq.innerHTML = q ? "Best quest: " + q : "";
   // STATUS ONLY, no objective: what to aim for is the Quests screen's job now,
   // and naming one quest here made the other two look like they did not count.
   // The element stays whatever it says — css.ts anchors the help line on it
@@ -176,7 +176,12 @@ let toastTimer = 0;
 // second border — so it sits with Hint and Menu; only the word changes.
 // Called at boot too, since the preference outlives the run.
 function paintMute(): void {
-  (sn.firstChild as Text).textContent = muted ? "Unmute" : "Mute";
+  // The WHOLE button, not just its text node. Targeting firstChild kept the
+  // shortcut hint alive without rewriting it, at the price of the last
+  // .textContent and the only .firstChild in the bundle — two singletons for
+  // one saved string. The string is not novel either: the same <i>M / Ⓜ</i>
+  // is already in the body markup this rewrites, so the packer has seen it.
+  sn.innerHTML = (muted ? "Unmute" : "Mute") + "<i>M / Ⓧ</i>";
 }
 
 // The one mute path: the key, the pad button and the HUD button all land here,
@@ -187,7 +192,7 @@ export function muteToggle(): void {
 }
 
 export function toast(msg: string): void {
-  to.textContent = msg;
+  to.innerHTML = msg;
   to.classList.add("w");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => to.classList.remove("w"), 1900);
@@ -525,10 +530,24 @@ function sweep(ms: number): void {
 // secondary behind would mean the next tap on it promoted rather than mixed.
 /* ------------------------------------------- first-ever discovery (full screen) */
 let discTimer = 0;
+// THE CELEBRATION QUEUES BEHIND THE DISCOVERY, and it queues by being ASKED
+// TWICE rather than by being remembered. The element that finishes a quest is
+// usually the one being discovered, so both want the screen in the same turn;
+// the completion used to win and cut the reveal off before a frame of it was
+// painted. Now checkMilestones() simply declines while the layer is up, and
+// closeDisc asks it again on the way out — whether that is the 3.25s timer or a
+// tap skipping it. An element that was already known opens no discovery, so the
+// first ask succeeds and the card is immediate.
+//
+// Nothing is stored between the two asks: the quest flags are still unset when
+// the first one declines, so the second re-derives the same answer from `found`.
+// That is what makes reset() safe — it wipes the board BEFORE closing the layer,
+// and the ask that follows sees a fresh game with nothing to celebrate.
 export function closeDisc(): void {
   clearTimeout(discTimer);
   ds.classList.remove("y");
   ds.innerHTML = "";
+  checkMilestones();
 }
 // Only ever for an element never discovered in ANY previous run — the codex is
 // what decides that. Rediscoveries and repeats stay in the cauldron.
@@ -751,21 +770,15 @@ type OverlayButton = [string, () => void];
 let obFns: (() => void)[] = [];
 let obCur = 0;
 function openOverlay(html: string, buttons: OverlayButton[]): void {
-  // A COMPLETION SCREEN CANCELS THE DISCOVERY LAYER, first-ever or not. The
-  // element that finishes the quest or the board is a first discovery like any
-  // other, so attempt() has already opened the full-screen card by the time
-  // checkMilestones gets here — and the card would then play for its 3.25s in
-  // front of the screen that actually matters, or worse, land on top of it.
-  // Cancelled in the SAME synchronous turn it was opened in, so nothing of it
-  // is ever painted. Every overlay this game opens is a completion screen, so
-  // the rule belongs here rather than at the two places that raise one.
-  closeDisc();
+  // NOTHING IS CANCELLED HERE ANY MORE. Both callers come through celebrate(),
+  // which is what decides whether this runs now or when the discovery ends, so
+  // by the time it does the discovery layer is already down.
   oc.innerHTML = html + '<div id=ob>';
   obFns = [];
   obCur = 0;
   buttons.map(([label, fn]) => {
     const b = document.createElement("button");
-    b.textContent = label;
+    b.innerHTML = label;
     b.onclick = fn;
     ob.appendChild(b);
     obFns.push(fn);
@@ -874,6 +887,7 @@ function bestLine(slot: number, val: number): string {
 const COLORS = 17;
 function checkMilestones(): void {
   if (cheated) return;   // nothing an unlocked board reaches is earned
+  if (ds.className) return;  // the reveal is playing; closeDisc asks again
   // AT MOST ONE named quest can land per move: a move discovers a single
   // element, and no element belongs to two of these sets — the colour block is
   // the table's first 17, Matter is the 18th, and none of the other three
@@ -902,7 +916,7 @@ function checkMilestones(): void {
     cowaDone = true;
     return finishQuest(S_COWA, "\u{1F977}\u{1F422}\u{1F355}", "COWABUNGA!");
   }
-  if (!colorDone && ELEMENTS.slice(0, COLORS).every(e => found[e.id])) {
+  if (!colorDone && !ELEMENTS.filter((e, i) => i < COLORS && !found[e.id]).length) {
     colorDone = true;
     return finishQuest(S_COLOR, "\u{1F3A8}", "Full Color Alchemist");
   }
@@ -982,7 +996,7 @@ function mPaint(): void {
 }
 function disarm(): void {
   const b = armIdx >= 0 ? menuButtons()[armIdx] : null;
-  if (b) { b.textContent = armLabel; b.classList.remove("R"); }
+  if (b) { b.innerHTML = armLabel; b.classList.remove("R"); }
   armIdx = -1;
   clearTimeout(armTimer);
 }
@@ -993,8 +1007,8 @@ function armed(i: number, warn: string): boolean {
   disarm();
   armIdx = i;
   const b = menuButtons()[i];
-  armLabel = b.textContent as string;
-  b.textContent = warn;
+  armLabel = b.innerHTML as string;
+  b.innerHTML = warn;
   b.classList.add("R");
   armTimer = setTimeout(disarm, 2500);
   return false;
@@ -1055,7 +1069,7 @@ function paintMenu(): void {
     if (!i && !inRun()) return;
     const j = n++;
     const b = document.createElement("button");
-    b.textContent = label;
+    b.innerHTML = label;
     b.onclick = () => fn(j);
     b["onpointerenter"] = () => { mCur = j; mPaint(); };
     mu.appendChild(b);
@@ -1156,10 +1170,14 @@ function encycloHtml(): string {
 export function reset(): void {
   cancelPress();
   closeOverlay();
-  closeDisc();
   clearSlots();
   found = {}; // the codex deliberately survives — New game wipes the board, not the knowledge
   order.length = 0;
+  // AFTER the wipe, never before: closeDisc asks checkMilestones on its way out,
+  // and asking it over the run that is being thrown away would raise that run's
+  // quest card over the fresh board. Escape during a reveal reaches the menu, so
+  // New game mid-discovery is a real sequence, not a hypothetical one.
+  closeDisc();
   tiles.length = 0;
   gd.innerHTML = "";
   tried = {};

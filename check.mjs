@@ -907,7 +907,19 @@ const RAINBOW_ONLY = order(new Set(["rainbow", ...union("sun", "rain")]), ["rain
 // first quest card of a run arrives within a handful of moves of the starters.
 // So the runs that assert on a final card pass `keep` for all but the last
 // pair, rather than not passing it at all.
-const KEEP = `const k = [...document.querySelectorAll('#ob button')]
+// SKIPPING THE DISCOVERY IS NOW PART OF REACHING A CARD. A quest card queues
+// BEHIND the first-ever discovery that finished it (celebrate() in game.ts), so
+// a run that ends on a new element leaves the discovery up and the card
+// pending. This taps the layer the way a player does — #ds carries the handler
+// itself — which is also what proves the queue drains on a skip rather than
+// only on its 3.25s timer.
+const SKIP_DISC = `(() => {
+  const d = document.getElementById('ds');
+  if (d.className) d.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+})()`;
+const skipDisc = () => evalJs(SKIP_DISC);
+const KEEP = `${SKIP_DISC};
+  const k = [...document.querySelectorAll('#ob button')]
     .find(x => x.textContent === 'Continue');
   if (k) { const c = document.getElementById('fw');
     (window.__seen = window.__seen || []).push({ t: oc.textContent, fw: c ? window.__fwMax : -1 });
@@ -918,6 +930,8 @@ const run = async (pairs, keep) => {
     await attempt(a, b);
     await evalJs(`(() => { ${RELEASE}; ${keep ? KEEP : ""} })()`);
   }
+  // and the card the LAST pair raised is behind its discovery as well
+  await skipDisc();
 };
 // THE FIRST CARD OF THE RUN IS MATTER'S, and the coverage run is stopped ON it
 // rather than through it: it is the one quest icon that is an element's own
@@ -926,9 +940,32 @@ const run = async (pairs, keep) => {
 // so a re-ordered route moves this with it.
 const MATTER_AT = QUEST.findIndex(([a, b]) => RECIPE[[a, b].sort().join("+")] === "matter");
 await run(QUEST.slice(0, MATTER_AT), 1);
-await run(QUEST.slice(MATTER_AT, MATTER_AT + 1));
+// THE QUEST CARD QUEUES BEHIND THE DISCOVERY, and this is the pair that proves
+// it: Matter is a first-EVER element here, so finishing the gateway quest with
+// it opens the full-screen reveal AND completes a quest in the same turn. The
+// reveal used to lose — openOverlay cancelled it before a frame was painted, so
+// the element you had just made never got its moment. Now the card waits.
+// Run WITHOUT run()'s trailing skip, or the queue would be drained before it
+// could be looked at.
+const [MA, MB] = QUEST[MATTER_AT];
+await attempt(MA, MB);
 await sleep(100);
 s = await state();
+// NOT matterDone yet, and that is the design rather than a detail: the quest is
+// not "finished and queued", it is NOT YET ASKED. checkMilestones declines while
+// the reveal is up and closeDisc asks again on the way out, so nothing is stored
+// between the two — which is what makes New game mid-reveal safe.
+check("matter: the discovery plays FIRST, and the quest is not yet finished",
+  !s.matterDone && s.phase === "play" &&
+  (await evalJs(`document.getElementById('ds').className`)) === "y" &&
+  !(await evalJs(`document.getElementById('ov').classList.contains('w')`)));
+// ...and a tap drains it, rather than only the 3.25s timer.
+await skipDisc();
+await sleep(100);
+s = await state();
+check("matter: skipping the reveal is what asks again, and raises the card",
+  s.matterDone && s.phase === "overlay" &&
+  !(await evalJs(`document.getElementById('ds').className`)));
 check("matter: the Matter gateway raises the run's first quest card",
   s.matterDone && s.phase === "overlay" &&
   await evalJs(`document.getElementById('oc').textContent.includes('Do what matters')`) &&

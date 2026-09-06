@@ -94,7 +94,8 @@ const zipOf = (order) => {
 // ---- hill climb -----------------------------------------------------------
 let s = SEED;
 const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-// Only the tail moves: the first PINNED entries are ELEMENTS.slice(0, COLORS).
+// Only the tail moves: the first PINNED entries are the colour block the quest
+// reads by index (i < COLORS in game.ts).
 const pick = () => PINNED + ((rnd() * (N - PINNED)) | 0);
 
 const incumbent = ids.slice();

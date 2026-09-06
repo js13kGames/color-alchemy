@@ -46,9 +46,11 @@ const enc = (n) =>
   String.fromCharCode(35 + ((n / RECIPE_BASE) | 0)) + String.fromCharCode(35 + (n % RECIPE_BASE));
 const dec = (s) => RECIPE_BASE * (s.charCodeAt(0) - 35) + s.charCodeAt(1) - 35;
 
-// COLORS in src/game.ts. `ELEMENTS.slice(0, COLORS)` is the colour quest's
-// slice and the ONE place the runtime reads this table by position, so nothing
-// may move into or out of that block. check.mjs pins both of its ends.
+// COLORS in src/game.ts. The colour quest asks whether the first COLORS
+// entries are all found — spelled `ELEMENTS.filter((e, i) => i < COLORS && ...)`
+// — and that index test is the ONE place the runtime reads this table by
+// position, so nothing may move into or out of that block. check.mjs pins both
+// of its ends.
 export const PINNED = 17;
 
 const propOf = (obj, name) =>
@@ -172,7 +174,7 @@ export function reorderElements(code, log = () => {}) {
     } else if (stored.slice(0, PINNED).join() !== here.slice(0, PINNED).join()) {
       throw new Error(
         `element-order: the stored order moves the first ${PINNED} entries, which are ` +
-        `ELEMENTS.slice(0, COLORS) — the colour quest would change shape`
+        `the colour block the quest reads by index — it would change shape`
       );
     } else {
       order = stored;
