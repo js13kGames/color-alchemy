@@ -370,6 +370,16 @@ f {
 .c b { display: block; font-size: 26px; color: #fff; margin-bottom: 6px; }
 @keyframes dc { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* reduced motion gets the still, not a faster animation */
+/* REDUCED MOTION IS DIRECTOR'S-CUT ONLY, and that is a budget decision rather
+   than an opinion about the setting. Honouring it costs 40 B packed — measured,
+   13444 -> 13404 — and 40 B is a tenth of what the fireworks cost to ship at
+   all. A 13312-byte entry buys its content by giving things up, and this is one
+   of them. The cut has no budget and keeps the whole block, which is also what
+   keeps burst() coherent: its own reduced-motion guard in src/sfx.ts is
+   director-only too, so sound and picture still leave together there.
+   The markers are the same ones rollup.config.mjs documents — a shipping build
+   cuts everything between them, a director build drops just the markers. */
+/*>director*/
 @media (prefers-reduced-motion: reduce) {
   .a, #ds .b, #ds .k, .f { display: none; }
   .r, .c { animation: none; opacity: 1; transform: none; filter: none; }
@@ -379,10 +389,9 @@ f {
   .t.g { animation: none; }
   /* a trail system with no motion is a blank canvas, so the fireworks do not
      get a still — they get nothing, and the card stands on its own */
-  /*>director*/
   #fw { display: none; }
-  /*<director*/
 }
+/*<director*/
 
 .v {
   position: fixed; inset: 0; z-index: 9; display: none;
@@ -398,9 +407,7 @@ f {
    z-index: -1 inside .v — which IS a stacking context, being positioned with a
    z-index — puts the canvas above the veil's own background and below the card,
    in one property instead of a rule for each. */
-/*>director*/
 #fw { position: absolute; inset: 0; z-index: -1; }
-/*<director*/
 .A {
   background: #112; border: 1px solid #3ee; border-radius: 14px;
   padding: 26px 34px; text-align: center; max-width: min(88vw, 420px);

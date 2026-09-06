@@ -19,6 +19,7 @@ import closureCompiler from "@ampproject/rollup-plugin-closure-compiler";
 // cannot go unnoticed.
 import { Packer } from "roadroller";
 import { reorderFunctions } from "./tools/fn-order.mjs";
+import { reorderElements } from "./tools/element-order.mjs";
 import { emojiFontCss, titleFontCss, resetFontDir } from "./tools/fonts.mjs";
 import { ESLint } from "eslint";
 import { createRequire } from "module";
@@ -578,10 +579,42 @@ const roadroller = {
 // that is what the search fits against, and what rr-config.json is stamped to.
 // The pass is idempotent (the stored order is absolute), so searching an
 // already-ordered chunk is sound.
+// A permutation of the ELEMENTS table, plus the two recipe-ordering rules that
+// come with it. Runs BEFORE fn-order and so before snapshotChunk, for the same
+// reason fn-order runs before the snapshot: the searched artifacts are fitted
+// to the chunk that actually reaches roadroller. It cannot invalidate
+// fn-order.json — the table is top-level data, not a function body, so no
+// function's text changes here. See tools/element-order.mjs.
+const reorderEls = {
+  name: "element-order",
+  renderChunk(code) {
+    return reorderElements(code, (m) => console.log(m));
+  },
+};
+
 const reorderFns = {
   name: "fn-order",
   renderChunk(code) {
     return reorderFunctions(code, (m) => console.log(m));
+  },
+};
+
+// The last character terser writes is a semicolon terminating the last
+// statement, and nothing follows it: the chunk is packed whole and handed to
+// one eval, so the terminator has nothing to terminate against. Terser has no
+// option for it — `semicolons: true` chooses `;` over newlines as the SEPARATOR
+// and still closes the final statement — so it comes off here.
+//
+// Runs immediately before snapshotChunk, which makes it the last edit the
+// chunk gets: both searches fit against that snapshot, so anything that trims
+// the input has to happen before it or they are fitting to a chunk that is not
+// the one roadroller packs.
+const dropTrailingSemicolon = {
+  name: "drop-trailing-semicolon",
+  renderChunk(code) {
+    if (!code.endsWith(";")) return null;
+    console.log("drop-trailing-semicolon: -1 char");
+    return code.slice(0, -1);
   },
 };
 
@@ -699,10 +732,29 @@ export default {
           wrap_func_args: false,
           semicolons: true,
           ecma: 2021,
+          // KEPT FOR THE PACKED BUILD TOO, and NOT for the charset guard.
+          // Dropping it only for `golf` builds fine and the guard passes:
+          // roadroller's output is printable ASCII whatever its input was, so
+          // the emoji never reach the page literally. It is simply 45 B WORSE,
+          // 13450 -> 13495. The chunk trades 3015 characters of escapes for
+          // 1372 of raw UTF-8 and loses, because `\u{1f3` is a prefix the model
+          // has already seen 271 times while raw emoji are novel bytes that
+          // widen its alphabet. Repetition is cheap; novelty is not.
           ascii_only: true,
+          // ONE DELIMITER EVERYWHERE. Terser's default (0) prefers double but
+          // switches a string to single when that escapes less — 33 of 1918
+          // strings, all of them HTML fragments carrying class="..." inside.
+          // Forcing double ADDS a backslash to every one of those and still
+          // wins 13 B, which is the var->let lesson again: roadroller pays for
+          // novelty, not for length, and a delimiter that changes 33 times is
+          // 33 surprises. Measured: unset 13463, always-single 13452,
+          // always-double 13450, keep-original 13463.
+          quote_style: 2,
         },
       }),
+    golf && reorderEls,
     golf && reorderFns,
+    golf && dropTrailingSemicolon,
     golf && snapshotChunk,
     golf && roadroller,
     !production &&

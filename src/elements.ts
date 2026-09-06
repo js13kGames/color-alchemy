@@ -11,7 +11,7 @@
 // filled in below, so every consumer still sees a plain string.
 // c = colour swatch, bg = custom swatch background (any CSS background stack),
 // e = emoji icon, s = inline SVG body on a 0 0 32 32 viewBox (rendered as an
-// <svg class="s">, so it picks up the square swatches' size rules, and c still
+// <svg class=s>, so it picks up the square swatches' size rules, and c still
 // supplies the glow), r = recipes (unordered pairs of ids). Several recipes may
 // make one element, and an alternate may be cyclic (Lava + Stone melts back
 // into Lava) — that is flavour for a pair players try, never a cheaper route.
@@ -973,9 +973,9 @@ export const ELEMENTS = ([
     r:[["cloud","ice"],["cloud","white"]] },
   // the one icon that has to show a mechanism: white light in, spectrum out
   { id:"prism", c:"#bee",
-    s:'<path d="M16 3 30 28H2Z" fill="#cee4" stroke="#eff" stroke-width="1.6" stroke-linejoin="round"/>' +
-      '<path d="M0 11h12" stroke="#fff" stroke-width="2.4"/>' +
-      '<g stroke-width="2.4" stroke-linecap="round">' +
+    s:'<path d="M16 3 30 28H2Z" fill=#cee4 stroke=#eff stroke-width=1.6 stroke-linejoin="round"/>' +
+      '<path d="M0 11h12" stroke=#fff stroke-width="2.4"/>' +
+      '<g stroke-width=2.4 stroke-linecap=round>' +
       '<path d="M22 15 32 7" stroke="#f33"/><path d="M22 15 32 10" stroke="#f93"/>' +
       '<path d="M22 15 32 13" stroke="#fd3"/><path d="M22 15 32 16" stroke="#3c5"/>' +
       '<path d="M22 15 32 19" stroke="#3ee"/><path d="M22 15 32 22" stroke="#36f"/>' +

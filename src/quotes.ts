@@ -329,7 +329,7 @@ export const wellQuote = (id: string): string =>
 
 // The codex row, under the name and the recipes that made it.
 export const codexQuote = (id: string): string =>
-  '<div class="Q">' + QUOTE[id] + "</div>";
+  '<div class=Q>' + QUOTE[id] + "</div>";
 
 // The rules for those three containers, appended to the sheet by css.ts. They
 // are here rather than in style.css for the same reason the strings are: a

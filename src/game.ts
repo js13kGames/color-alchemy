@@ -43,7 +43,7 @@ import { ELEMENTS, STARTERS, BY_ID, RECIPE, N, type ElementDef } from "./element
 // four of them behind the __DIRECTOR__ literal at every call site below, which
 // is what lets closure delete the lot from a shipping build.
 import { cardQuote, wellQuote, codexQuote } from "./quotes";
-import { SFX, muted } from "./sfx";
+import { SFX, muted, burst } from "./sfx";
 import { toggleMute } from "./music";
 
 /* ------------------------------------------------------------- persistence */
@@ -207,13 +207,13 @@ export function toast(msg: string): void {
 function iconHtml(el: ElementDef): string {
   // an SVG icon rides on .s too, so every size rule the swatches have applies
   if (el.s) {
-    return '<svg class="s" viewBox="0 0 32 32" style="--g:' + (el.c || "#85f") + '5">' +
+    return '<svg class=s viewBox="0 0 32 32" style="--g:' + (el.c || "#85f") + '5">' +
            el.s + "</svg>";
   }
   if (el.c || el.bg) {
     // bg (a full CSS background stack) overrides the flat color; the plain
     // color always supplies the glow, a gradient being no kind of color
-    return '<div class="s" style="background:' + (el.bg || el.c) +
+    return '<div class=s style="background:' + (el.bg || el.c) +
            ";--g:" + (el.c || "#85f") + '5"></div>';
   }
   return el.e || "";
@@ -223,7 +223,7 @@ function addTile(id: string): void {
   const d = document.createElement("div");
   d.className = "t";
   d.dataset.id = id;
-  d.innerHTML = '<div class="o">' + iconHtml(el) + '</div><div class="n">' + el.n;
+  d.innerHTML = '<div class=o>' + iconHtml(el) + '</div><div class=n>' + el.n;
   const i = order.length;
   d.onclick = () => {
     if (performance.now() < clickGuard) return; // that click ended a drag
@@ -353,7 +353,7 @@ let clickGuard = 0;         // clicks before this timestamp ended a drag, not a 
 let dragSel = -1, dragHeld = false;
 
 function startPress(e: PointerEvent, i: number): void {
-  if (phase() !== "play" || pressIdx >= 0) return;
+  if (phase() || pressIdx >= 0) return;
   if (e.pointerType === "mouse" && e.button !== 0) return;
   pressIdx = i;
   pressX = lastX = e.clientX;
@@ -362,7 +362,7 @@ function startPress(e: PointerEvent, i: number): void {
   if (e.pointerType !== "mouse") pressTimer = setTimeout(lift, 220);
 }
 function lift(): void {
-  if (pressIdx < 0 || dragging || phase() !== "play") return;
+  if (pressIdx < 0 || dragging || phase()) return;
   dragging = true;
   dragSel = sel;            // remembered, in case the drop lands back on the source
   dragHeld = held;
@@ -480,10 +480,16 @@ function cancelPress(): void {
 }
 
 /* --------------------------------------------------------------- gameplay */
-export type Phase = "overlay" | "menu" | "play";
+// THE PHASE IS A NUMBER, and the two values it can be compared against for
+// free are the reason for the exact numbering: PLAY is 0 so "are we playing"
+// is `!p`, and OVER is the highest so "is a card up" is `p > 1`. Named here and
+// inlined by closure, so the call sites stay readable and the chunk ships the
+// digits — 21 occurrences of "play"/"menu"/"overlay" were 141 characters of
+// string literal for what is three states.
+export const PLAY = 0, TITLE = 1, OVER = 2;
+export type Phase = typeof PLAY | typeof TITLE | typeof OVER;
 export function phase(): Phase {
-  return ov.classList.contains("w") ? "overlay"
-       : ti.classList.contains("w") ? "menu" : "play";
+  return ov.classList.contains("w") ? OVER : ti.classList.contains("w") ? TITLE : PLAY;
 }
 /* ---------------------------------------------------------------- cauldron */
 // The altar is the whole discovery UI now: a result lands in #cr instead of
@@ -491,7 +497,7 @@ export function phase(): Phase {
 function fill(box: HTMLElement, id: string | null): void {
   const el = id ? BY_ID[id] : null;
   box.innerHTML = el
-    ? (el.c || el.bg || el.s ? iconHtml(el) : '<span class="i">' + el.e + "</span>") +
+    ? (el.c || el.bg || el.s ? iconHtml(el) : '<span class=i>' + el.e + "</span>") +
       "<span>" + el.n
     : "";
 }
@@ -529,23 +535,23 @@ export function closeDisc(): void {
 function openDisc(id: string, aId: string, bId: string): void {
   let k = "";
   for (let i = 0; i < 14; i++) {
-    k += '<span class="k" style="transform:rotate(' + (i * 25.7 + 8) +
+    k += '<span class=k style="transform:rotate(' + (i * 25.7 + 8) +
       "deg);--c:hsl(" + ((i * 360 / 14) | 0) + ' 95% 62%);animation-delay:' +
       (1.05 + i * 0.012) + 's"></span>';
   }
   const el = BY_ID[id];
-  ds.innerHTML = k + '<span class="f"></span>' +
-    '<span class="m"><span class="g a">' + iconHtml(BY_ID[aId]) + "</span></span>" +
-    '<span class="m"><span class="g b">' + iconHtml(BY_ID[bId]) + "</span></span>" +
-    '<span class="m"><span class="g r">' + iconHtml(el) + "</span></span>" +
+  ds.innerHTML = k + '<span class=f></span>' +
+    '<span class=m><span class="g a">' + iconHtml(BY_ID[aId]) + "</span></span>" +
+    '<span class=m><span class="g b">' + iconHtml(BY_ID[bId]) + "</span></span>" +
+    '<span class=m><span class="g r">' + iconHtml(el) + "</span></span>" +
     // The tag and the skip line borrow .T and .O off the menu screens rather
     // than bringing rules of their own: both are already the muted 11px the
     // card wants, and .T's letter-spacing is what makes a caps label read as a
     // label. The tip is the only place the game says the card can be cut
     // short, so it names all three inputs padSelect() now answers.
-    '<span class="c"><div class="T">NEW ELEMENT</div><b>' + el.n + "</b>" +
+    '<span class=c><div class=T>NEW ELEMENT</div><b>' + el.n + "</b>" +
     (__DIRECTOR__ ? cardQuote(id) : "") +
-    '<div class="O">tap / Enter / Ⓐ to skip</div>';
+    '<div class=O>tap / Enter / Ⓐ to skip</div>';
   reflow(ds);            // re-arm the fade when one discovery follows another
   ds.classList.add("y");
   discTimer = setTimeout(closeDisc, 3250);
@@ -567,7 +573,7 @@ export function unlock(): void {
 // from scratch, while a locked one survives every mix, which is what makes
 // trying Fire against ten things ten taps instead of twenty.
 export function selectAt(i: number): void {
-  if (phase() !== "play" || i < 0 || i >= order.length) return;
+  if (phase() || i < 0 || i >= order.length) return;
   cursor = i;
   if (sel === i) {
     if (held) { sel = -1; held = false; SFX.cancel(); }   // third tap: let go
@@ -704,7 +710,7 @@ function questWants(): Record<string, 1> {
   return want;
 }
 export function hint(): void {
-  if (phase() !== "play") return;
+  if (phase()) return;
   const std = standingHint();
   if (std) {
     showHint(std, " — already paid for");
@@ -754,7 +760,7 @@ function openOverlay(html: string, buttons: OverlayButton[]): void {
   // is ever painted. Every overlay this game opens is a completion screen, so
   // the rule belongs here rather than at the two places that raise one.
   closeDisc();
-  oc.innerHTML = html + '<div id="ob">';
+  oc.innerHTML = html + '<div id=ob>';
   obFns = [];
   obCur = 0;
   buttons.map(([label, fn]) => {
@@ -780,84 +786,72 @@ export function obGo(): void {
 function closeOverlay(): void {
   ov.classList.remove("w");
   oc.innerHTML = ""; // the hidden best must not linger in the DOM
-  // Behind __DIRECTOR__ with the rest of the fireworks: in a shipping build
-  // this is the last reference to fwRaf and to the canvas, and closure needs
-  // every one of them gone before it will delete the effect itself.
-  if (__DIRECTOR__) {
-    cancelAnimationFrame(fwRaf);
-    fw.width = 0;    // resizing the bitmap IS the clear, and it is one word
-  }
+  fw.width = 0;      // resizing the bitmap IS the clear, and it is one word
 }
 
 /* ------------------------------------------------------ completion fireworks */
 // COMETS, chosen in experiments/fireworks-gl.html. Shells go up across `span`
-// seconds, spread over the width; each spark keeps its last six positions and is
-// stroked as a path through them, so it reads as a comet rather than as a dot
-// with a smear behind it. The trails come from FADING the canvas each frame
-// instead of clearing it — one fillRect, and the frame before shows through.
+// seconds, spread over the width, and each spark is a 2px square.
+//
+// THE TRAIL IS THE FADE, and nothing else: the canvas is covered each frame
+// with a translucent near-black instead of being cleared, so every previous
+// position of every spark is still there, one step dimmer. The cut strokes a
+// path through each spark's last six positions on top of that; a 13312-byte
+// build cannot afford the history, and the fade alone still reads as a comet
+// because the spark moves 1-3px a frame and the smear closes the gap.
+//
+// #0004 rather than a colour of its own: the fade only has to hold the veil
+// down, `#000` is a string this bundle is already full of, and the exact tint
+// of a 27%-alpha wash over #001c is not something an eye can find.
 //
 // The only canvas in the game, and it earns that by being the only moment worth
 // it: this runs once or twice in a whole run. It never blocks — every button on
 // the card works on frame one — and it stops itself when the last comet dies.
 // prefers-reduced-motion gets no still, because a trail system held still is a
-// blank canvas; style.css hides it outright and the card stands on its own.
-let fwRaf = 0;
+// blank canvas; style.css hides it outright and the card stands on its own —
+// but ONLY IN THE CUT. That whole media block is behind the director markers
+// now: honouring the setting costs 40 B packed, and a 13312-byte build buys its
+// content by giving things up. The shipping build plays this to everyone.
 function fireworks(span: number): void {
   const g = fw.getContext("2d") as CanvasRenderingContext2D;
-  // the bitmap is device pixels and the drawing code is CSS pixels, or every
-  // tail is soft on the phones most likely to see this screen
-  const r = Math.min(devicePixelRatio || 1, 2);
-  const w = innerWidth, h = innerHeight;
-  fw.width = w * r;
-  fw.height = h * r;
-  g.setTransform(r, 0, 0, r, 0, 0);
-  g.lineCap = "round";
-  const P: { x: number; y: number; vx: number; vy: number; c: string; l: number; t: number; h: number[] }[] = [];
+  const w = fw.width = innerWidth, h = fw.height = innerHeight;
+  const P: { x: number; y: number; vx: number; vy: number; c: string; t: number }[] = [];
   let last = 0, at = 0, next = 0;
   const step = (now: number): void => {
-    const dt = Math.min(0.05, (now - last) / 1000) || 0;
+    const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     at += dt;
     if (at > next && at < span) {
-      const x = (0.16 + Math.random() * 0.68) * w, y = (0.2 + Math.random() * 0.24) * h;
-      // the discovery rays' own colour formula, so a shell is never a colour the
-      // game does not already use somewhere
-      const c = "hsl(" + ((Math.random() * 360) | 0) + " 95% 62%)";
+      const x = (0.16 + Math.random() * 0.68) * w, y = (0.2 + Math.random() * 0.24) * h,
+        c = "hsl(" + ((Math.random() * 360) | 0) + " 95% 62%)";
+      // DIRECTOR'S CUT: heard where it is seen. The pan is this shell's own x
+      // across the width and the crackle is pitched by its own hue, read back
+      // out of the colour string rather than computed twice — a shipping build
+      // deletes this line, and with it every byte of burst() in src/sfx.ts, so
+      // the string stays the one place the hue lives.
+      if (__DIRECTOR__) burst(x / w * 2 - 1, parseFloat(c.slice(4)));
       for (let i = 0; i < 26; i++) {
         const a = (i / 26) * 6.283, s = 60 + Math.random() * 100;
-        P.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, c, l: 1.1 + Math.random() * 0.8, t: 0, h: [] });
+        P.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, c, t: 1.1 + Math.random() * 0.8 });
       }
       next = at + 0.12 + Math.random() * 0.12;
     }
-    g.globalCompositeOperation = "source-over";
-    g.fillStyle = "#04060c4d";
+    g.globalAlpha = 1;
+    g.fillStyle = "#0004";
     g.fillRect(0, 0, w, h);
-    g.globalCompositeOperation = "lighter";
     for (let i = P.length; i--;) {
       const p = P[i];
-      p.t += dt;
-      if (p.t > p.l) { P.splice(i, 1); continue; }
-      p.vy += 88 * dt;                       // gravity
-      p.vx -= p.vx * dt;                     // drag
-      p.vy -= p.vy * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.h.push(p.x, p.y);
-      if (p.h.length > 12) p.h.splice(0, 2); // six positions is the whole tail
-      const k = 1 - p.t / p.l;
-      g.globalAlpha = k * 0.9;
-      g.strokeStyle = p.c;
-      g.lineWidth = 1 + k * 1.6;
-      g.beginPath();
-      g.moveTo(p.h[0], p.h[1]);
-      for (let j = 2; j < p.h.length; j += 2) g.lineTo(p.h[j], p.h[j + 1]);
-      g.stroke();
+      if ((p.t -= dt) < 0) { P.splice(i, 1); continue; }
+      p.vy += (88 - p.vy) * dt;
+      p.vx -= p.vx * dt;
+      g.globalAlpha = p.t / 2;
+      g.fillStyle = p.c;
+      g.fillRect(p.x += p.vx * dt, p.y += p.vy * dt, 2, 2);
     }
-    g.globalAlpha = 1;
-    if (P.length || at < span) fwRaf = requestAnimationFrame(step);
+    if (P.length || at < span) requestAnimationFrame(step);
     else fw.width = 0;
   };
-  fwRaf = requestAnimationFrame(now => { last = now; step(now); });
+  requestAnimationFrame(step);
 }
 
 // Compare-and-store; returns the HTML line describing the result.
@@ -924,17 +918,17 @@ function finishQuest(slot: number, icons: string, name: string): void {
   if (order.length === ELEMENTS.length) return finishFull(q);
   SFX.fanfare();
   openOverlay(
-    '<div class="B">' + icons + "</div>" +
-    '<div class="T">QUEST COMPLETE</div>' +
+    '<div class=B>' + icons + "</div>" +
+    '<div class=T>QUEST COMPLETE</div>' +
     "<h2>" + name + "</h2>" +
-    '<div class="L">forged in <b>' + moves + "</b> moves</div>" + q,
+    '<div class=L>forged in <b>' + moves + "</b> moves</div>" + q,
     // ONE WAY OUT, and it is back to the board: an intermediate quest is a
     // moment in a run, not the end of one, so the card has nothing to offer
     // but its own dismissal. Leaving for the menu is still one Escape away
     // once the card is down — it just is not a choice the celebration makes.
     [["Continue", () => { closeOverlay(); hud(); }]],
   );
-  if (__DIRECTOR__) fireworks(1.6);
+  fireworks(1.6);
 }
 function finishFull(questHtml: string): void {
   fullDone = true;
@@ -944,18 +938,18 @@ function finishFull(questHtml: string): void {
   hud();
   SFX.grand();
   openOverlay(
-    '<div class="B">\u{1F3C6}</div>' +
-    '<div class="T">GOTTA CATCH \'EM ALL!</div>' +
+    '<div class=B>\u{1F3C6}</div>' +
+    '<div class=T>GOTTA CATCH \'EM ALL!</div>' +
     "<h2>All " + ELEMENTS.length + " elements</h2>" +
-    (questHtml ? '<div class="L">quest also completed — in <b>' + moves + "</b> moves</div>" : "") +
-    '<div class="L">complete run: <b>' + moves + "</b> moves</div>" + f,
+    (questHtml ? '<div class=L>quest also completed — in <b>' + moves + "</b> moves</div>" : "") +
+    '<div class=L>complete run: <b>' + moves + "</b> moves</div>" + f,
     // AND HERE THE RUN IS OVER, so the one way out is the other one: the board
     // behind this card holds every element there is, and nothing left to do on
     // it. inRun() drops Continue from the menu for the same reason, so this is
     // the last the finished run is seen — New game is what follows it.
     [["Main menu", () => { closeOverlay(); openMenu(); }]],
   );
-  if (__DIRECTOR__) fireworks(3.2);
+  fireworks(3.2);
 }
 
 /* ------------------------------------------------------- title screen menu */
@@ -1071,7 +1065,7 @@ function paintMenu(): void {
   mPaint();
 }
 export function openMenu(): void {
-  if (phase() !== "play") return;
+  if (phase()) return;
   cancelPress();
   clearSel();
   closePanel();          // paints the column
@@ -1085,8 +1079,8 @@ function closeMenu(): void {
   document.body.classList.remove("M");
 }
 function openPanel(head: string, listHtml: string): void {
-  mu.innerHTML = '<div id="mh">' + head.toUpperCase() + '</div><div id="ml">' + listHtml +
-    '</div><button id="mb">Back';
+  mu.innerHTML = '<div id=mh>' + head.toUpperCase() + '</div><div id=ml>' + listHtml +
+    '</div><button id=mb>Back';
   mb.onclick = menuBack;   // the button is rebuilt with the panel, so is this
   panel = true;
   mu.classList.add("j");
@@ -1126,7 +1120,7 @@ export function menuBack(): void {
 // the parameter that carried the difference goes with it.
 function questsHtml(): string {
   const row = (name: string, best: unknown): string =>
-    '<div class="H"><span>' + name + "</span><b>" +
+    '<div class=H><span>' + name + "</span><b>" +
     (best ? best + " moves" : "—") + "</b></div>";
   return (
     row("Do what matters — Matter", cell[S_MATTER]) +
@@ -1148,13 +1142,13 @@ function encycloHtml(): string {
       ? known.map(p => N(p[0]) + " + " + N(p[1])).join(" &nbsp;&middot;&nbsp; ")
       : el.r ? "?" : "";
     return (
-      '<div class="J"><span class="I">' + iconHtml(el) + "</span><span>" +
-      "<b>" + el.n + '</b><i class="X">' + rec + "</i>" +
+      '<div class=J><span class=I>' + iconHtml(el) + "</span><span>" +
+      "<b>" + el.n + '</b><i class=X>' + rec + "</i>" +
       (__DIRECTOR__ ? codexQuote(id) : "") + "</span></div>"
     );
   }).join("");
   return rows +
-    '<div class="O">' + codexF.length + " / " + ELEMENTS.length + " elements &middot; " +
+    '<div class=O>' + codexF.length + " / " + ELEMENTS.length + " elements &middot; " +
     Object.keys(codexK).length + " / " + Object.keys(RECIPE).length + " combinations</div>";
 }
 
@@ -1192,7 +1186,7 @@ export function boot(): void {
   ds["onpointerdown"] = closeDisc;      // a tap anywhere skips it
   // non-passive so an active drag can stop a pan from starting; until the
   // long-press lifts the tile, touch scrolling behaves normally
-  window.addEventListener("touchmove", e => { if (dragging) e.preventDefault(); }, { passive: false });
+  addEventListener("touchmove", e => { if (dragging) e.preventDefault(); }, { passive: false });
 
   // restore the codex (all-time knowledge) first
   try {
@@ -1211,7 +1205,7 @@ export function boot(): void {
   run = cell[S_RUN] || null;
   if (run && run.f && (run.f as string[]).map) {
     const ids = (run.f as string[]).filter(id => BY_ID[id]);
-    STARTERS.map(id => { if (!ids.includes(id)) ids.unshift(id); });
+    STARTERS.map(id => { if (!ids.includes(id)) ids.splice(0, 0, id); });
     ids.map(id => { found[id] = 1; addTile(id); });
     // migrate pre-codex saves: a run's discoveries and combos are knowledge
     ids.map(id => { if (!codexF.includes(id)) codexF.push(id); });

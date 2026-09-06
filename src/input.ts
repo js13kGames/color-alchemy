@@ -2,7 +2,7 @@
 // their own click handlers, and drag-and-drop lives with the tiles too
 // (see game.ts — addTile and the drag & drop section).
 import {
-  phase, obMove, obGo, moveCursor, padSelect, clearSel,
+  phase, TITLE, obMove, obGo, moveCursor, padSelect, clearSel,
   openMenu, menuMove, menuGo, menuBack, hint, muteToggle,
 } from "./game";
 
@@ -12,11 +12,11 @@ import {
 
 /* --------------------------------------------------------------- keyboard */
 export function initKeyboard(): void {
-  window.onkeydown = e => {
+  onkeydown = e => {
     const k = e.key;
     if (!e.repeat && k === "m") { muteToggle(); e.preventDefault(); return; }
     const p = phase();
-    if (p === "overlay") {
+    if (p > 1) {
       if (k === "ArrowLeft" || k === "ArrowRight" || k === "Tab") {
         obMove(k === "ArrowLeft" ? -1 : 1);
         e.preventDefault();
@@ -26,7 +26,7 @@ export function initKeyboard(): void {
       }
       return;
     }
-    if (p === "menu") {
+    if (p === TITLE) {
       if (k === "ArrowUp" || k === "w") menuMove(-1);
       else if (k === "ArrowDown" || k === "s") menuMove(1);
       else if (!e.repeat && (k === "Enter" || k === " ")) menuGo();
@@ -74,7 +74,7 @@ export function pollPad(now: number): void {
   // the pad. (?. would say it in fewer bytes, but the closure plugin re-parses
   // closure's output with an acorn too old to walk a ChainExpression.)
   const p0 = (navigator.getGamepads ? navigator.getGamepads() : [])
-    .find(g => g && g.connected);
+    .filter(g => g && g.connected)[0];
   if (!p0) return;
   const bt = (i: number): boolean => !!(p0.buttons[i] && p0.buttons[i].pressed);
   const ax = (i: number): number => (p0.axes && p0.axes[i]) || 0;
@@ -92,9 +92,9 @@ export function pollPad(now: number): void {
       if (fire) {
         dirHeld[d]!.last = now;
         const p = phase();
-        if (p === "play") moveCursor(DELTA[d][0], DELTA[d][1]);
-        else if (p === "overlay" && (d === "left" || d === "right")) obMove(d === "left" ? -1 : 1);
-        else if (p === "menu" && (d === "up" || d === "down")) menuMove(d === "up" ? -1 : 1);
+        if (!p) moveCursor(DELTA[d][0], DELTA[d][1]);
+        else if (p > 1 && (d === "left" || d === "right")) obMove(d === "left" ? -1 : 1);
+        else if (p === TITLE && (d === "up" || d === "down")) menuMove(d === "up" ? -1 : 1);
       }
     } else delete dirHeld[d];
   }
@@ -108,21 +108,21 @@ export function pollPad(now: number): void {
   };
   if (edge(0)) {
     const p = phase();
-    if (p === "overlay") obGo();
-    else if (p === "menu") menuGo();
+    if (p > 1) obGo();
+    else if (p === TITLE) menuGo();
     else padSelect();
   }
   if (edge(1)) {
     const p = phase();
-    if (p === "menu") menuBack();
-    else if (p === "play") { if (!clearSel()) openMenu(); } // Ⓑ mirrors Escape
+    if (p === TITLE) menuBack();
+    else if (!p) { if (!clearSel()) openMenu(); } // Ⓑ mirrors Escape
   }
   if (edge(2)) muteToggle();                 // Ⓧ mirrors M, in every phase
-  if (edge(3) && phase() === "play") hint(); // Ⓨ mirrors H; ignored elsewhere
+  if (edge(3) && !phase()) hint(); // Ⓨ mirrors H; ignored elsewhere
   if (edge(9)) {
     const p = phase();
-    if (p === "overlay") obGo();
-    else if (p === "menu") menuBack();  // Start toggles the pause menu closed
+    if (p > 1) obGo();
+    else if (p === TITLE) menuBack();  // Start toggles the pause menu closed
     else openMenu();                    // and open
   }
 }

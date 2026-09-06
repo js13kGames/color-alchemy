@@ -164,7 +164,7 @@ export function sampler(SR: number): () => Float64Array {
   // its density.
   const diff = (maxdur: number): any[] => {
     const n = (maxdur / 1e3) * SR, bufs: Float64Array[] = [];
-    for (let c = 0; c < CH; c++) bufs.push(buf(Math.floor((n * c) / CH + (n / CH) * Math.random()) + 1));
+    for (let c = 0; c < CH; c++) bufs.push(buf(((n * c) / CH + (n / CH) * Math.random() | 0) + 1));
     return [3, bufs, 0, 0, 0, 0, 0, 0, 0, new Int32Array(CH)];
   };
 
@@ -256,7 +256,7 @@ export function sampler(SR: number): () => Float64Array {
       // 1, where Math.cos never could, and then the offset goes negative, the
       // read index lands on -1, and a Float64Array returns undefined — silent
       // NaN through the whole mix. It bit at 0.5s in.
-      const d = Math.max(0, f[5] * (1 - cs[2 * i])), di = Math.floor(d);
+      const d = Math.max(0, f[5] * (1 - cs[2 * i])), di = d | 0;
       let p = ptr[i] + di;
       if (p >= L) p -= L;
       let q = p + 1;

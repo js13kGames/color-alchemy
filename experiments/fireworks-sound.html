@@ -1,0 +1,364 @@
+<!doctype html>
+<!-- COLOR ALCHEMY — the fireworks WITH SOUND. Open it in a browser; nothing to
+     build. Click QUEST or FULL CLEAR (or press 1 and 2), M mutes, S shows the
+     mapping, C hides the notes.
+
+     WHAT THIS IS FOR, and it is the one thing experiments/fireworks.html ruled
+     out of scope: that page ends with "WHAT IS NOT HERE. No audio." It chose
+     the picture. This page is the other half — the picture is settled, and the
+     question is what it should sound like.
+
+     THE CLAIM BEING TESTED is not "does it sound good", which is an argument
+     nobody wins in a comment. It is narrower and checkable: THE SOUND IS
+     PLACED AND PITCHED BY THE PICTURE.
+
+       - PAN is the shell's own x across the width. A burst on the left is
+         heard on the left. Press S and watch the marker: the number under each
+         shell is the pan it was given, and it is x/w*2-1 and nothing else.
+       - PITCH is the shell's own hue — the SAME number that drew the sparks,
+         read back out of the hsl() string rather than rolled a second time.
+         The report is a bandpass at 400 + hue*4, the crackle a highpass at
+         1200 + hue*6. Warm shells report low and dull, cold ones bright.
+
+     Turn the sound off with M and the two halves come apart: with S on you can
+     still see that every marker is where its burst was heard.
+
+     WHAT IS DELIBERATELY ABSENT. No launch whistle. Nothing rises on screen —
+     the shells simply appear — and a sound for a thing that is not drawn is a
+     lie the ear catches before the eye does. If a whistle is ever wanted, the
+     picture has to earn it first by drawing a rocket.
+
+     THE CRACKLE IS SPARSE, AND THAT IS THE WHOLE TRICK. A crackle is not
+     noise; it is a few hundred separate little reports. The buffer is filled at
+     p = 0.004 and high-passed. Fill it densely with a decay on it instead —
+     the obvious way, and the way it was written first — and it stops being a
+     firework and becomes a kettle. Press K to hear that mistake on purpose.
+
+     WHERE THE REAL CODE LIVES. Both halves below are COPIES, kept verbatim so
+     this page can be opened without a build:
+       - the effect: fireworks() in src/game.ts
+       - the sound:  burst() in src/sfx.ts, behind __DIRECTOR__
+     `npm run fireworks-check` is the probe that holds the shipped page to the
+     two mappings above, so if this page and the game ever disagree, that is
+     the thing that will say so.
+
+     BUDGET. The sound is DIRECTOR'S CUT ONLY and costs the 13312-byte build
+     nothing: burst() is a bare function whose only call sits behind
+     __DIRECTOR__, so closure deletes it outright — grep dist/bundle.html for
+     createStereoPanner and you get zero. The picture is the half that ships,
+     and it is the one that had to be golfed down to dots on a fade. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color Alchemy — fireworks with sound</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #05060f; color: #cfe3ff; font: 14px/1.45 monospace;
+    padding: 24px; max-width: 1100px; margin-inline: auto;
+  }
+  h1 { font-size: 20px; letter-spacing: .18em; margin: 0 0 6px; color: #fff; }
+  .lede { color: #8fa8c8; margin: 0 0 14px; max-width: 76ch; }
+  .keys { color: #6f86a4; font-size: 12px; margin: 0 0 18px; }
+  kbd {
+    background: #16203a; border: 1px solid #2b3d63; border-radius: 4px;
+    padding: 1px 5px; color: #cfe3ff;
+  }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  button {
+    background: #112; color: #cdf; border: 1px solid #346; border-radius: 8px;
+    padding: 9px 16px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: #3ee; color: #fff; }
+  button.on { border-color: #3ee; color: #3ee; }
+  button.warn.on { border-color: #ff9aa8; color: #ff9aa8; }
+
+  /* The stage is the game's own overlay: .v is the veil, .A the card. Copied
+     from src/style.css so the fireworks are judged against the thing they
+     actually sit behind, not against black. */
+  #stage {
+    /* z-index MATTERS HERE and it is not decoration: #fw is z-index:-1, which
+       paints above its parent's BACKGROUND and below its content — but only if
+       the parent is a stacking context. The game gets one for free, because .v
+       is position:fixed WITH z-index:9. A bare position:relative is not one, so
+       without this the canvas escapes to the root stacking context and draws
+       BEHIND the 80%-opaque veil, which is why the fireworks looked washed out
+       on this page and correct in the game. */
+    position: relative; z-index: 0; height: 460px; border-radius: 12px; overflow: hidden;
+    background: #001c; border: 1px solid #1b2a49;
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* width/height 100%, NOT just inset:0. A canvas is a REPLACED element, so
+     `width:auto` with left and right both 0 resolves to its INTRINSIC width —
+     300 — and the layout ignores `right`. The game never trips over this
+     because fireworks() measures innerWidth rather than the element; this page
+     measures the stage, so the canvas has to actually fill it. */
+  #fw { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+  #mark { position: absolute; inset: 0; pointer-events: none; }
+  .A {
+    background: #112; border: 1px solid #fd6; border-radius: 14px;
+    padding: 26px 34px; text-align: center; max-width: min(88vw, 420px);
+    box-shadow: 0 0 50px #fd62; position: relative;
+  }
+  .A .B { font-size: 56px; line-height: 1; margin-bottom: 10px; }
+  .A .T { font-size: 11px; letter-spacing: .3em; color: #fd6; }
+  .A h2 { margin: 6px 0 2px; color: #fff; font-size: 22px; }
+  .A .L { margin: 6px 0 0; color: #cdf; }
+
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 12px; }
+  th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid #16203a; }
+  th { color: #6f86a4; font-weight: normal; letter-spacing: .1em; }
+  td b { color: #fff; font-weight: normal; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; }
+  #notes { margin-top: 18px; color: #8fa8c8; max-width: 82ch; }
+  #notes h2 { font-size: 12px; letter-spacing: .2em; color: #3ee; margin: 18px 0 4px; }
+  #notes p { margin: 0 0 8px; }
+  .warnline { display: none; color: #ff9aa8; font-size: 12px; margin: 10px 0 0; }
+  @media (prefers-reduced-motion: reduce) { .warnline { display: block; } }
+</style>
+</head>
+<body>
+<h1>FIREWORKS &mdash; WITH SOUND</h1>
+<p class="lede">The half <b>experiments/fireworks.html</b> ruled out of scope. The picture is settled;
+this is what it sounds like. The claim is not that it sounds good &mdash; it is that the sound is
+<b>placed and pitched by the picture</b>: pan is the shell&rsquo;s own x, pitch is the shell&rsquo;s own
+hue. Press <kbd>S</kbd> and watch each marker land where you heard it.</p>
+<p class="keys">
+  <kbd>1</kbd> quest (1.6s) &middot; <kbd>2</kbd> full clear (3.2s) &middot;
+  <kbd>M</kbd> mute &middot; <kbd>S</kbd> show the mapping &middot;
+  <kbd>K</kbd> the kettle mistake &middot; <kbd>C</kbd> notes
+</p>
+
+<div class="bar">
+  <button id="bQuest">QUEST &mdash; 1.6s</button>
+  <button id="bFull">FULL CLEAR &mdash; 3.2s</button>
+  <button id="bMute">sound: on</button>
+  <button id="bShow">mapping: off</button>
+  <button id="bKettle" class="warn">crackle: sparse</button>
+</div>
+
+<div id="stage">
+  <canvas id="fw"></canvas>
+  <svg id="mark"></svg>
+  <div class="A">
+    <div class="B">&#x1F308;&#x1F984;</div>
+    <div class="T">QUEST COMPLETE</div>
+    <h2>Rainbow &amp; Unicorn</h2>
+    <div class="L">forged in <b>47</b> moves</div>
+  </div>
+</div>
+<p class="warnline">Your system asks for reduced motion. The game hides <b>#fw</b> outright under that
+setting and <b>burst()</b> returns before it makes a sound &mdash; the picture and the sound leave
+together. This page still plays on purpose, so the thing can be judged at all.</p>
+
+<table>
+  <thead><tr><th>#</th><th>x</th><th>pan</th><th>hue</th><th>report Hz</th><th>crackle Hz</th></tr></thead>
+  <tbody id="log"></tbody>
+</table>
+
+<div id="notes">
+  <h2>WHY NO LAUNCH WHISTLE</h2>
+  <p>Nothing rises on screen. The shells appear where they burst, so a whistle would be scoring a
+  rocket that was never drawn &mdash; and the ear catches that before the eye does. If a whistle is
+  ever wanted, the picture has to earn it first.</p>
+  <h2>WHY THE CRACKLE IS SPARSE</h2>
+  <p>A crackle is not noise; it is a few hundred separate little reports. The buffer is filled at
+  <b>p&nbsp;=&nbsp;0.004</b>. The obvious way &mdash; dense noise with a decay on it &mdash; is what it
+  was written as first, and it sounds like escaping steam. Press <kbd>K</kbd> to hear the mistake.</p>
+  <h2>WHAT THIS COSTS THE GAME</h2>
+  <p>Nothing. The sound is director&rsquo;s-cut only: <b>burst()</b> is a bare function whose one call
+  sits behind <b>__DIRECTOR__</b>, so closure deletes it from the 13312-byte build entirely. It is
+  deliberately <i>not</i> a member of the <b>SFX</b> object &mdash; a property on that literal is
+  reachable, so it could not be dropped and every byte would ship.</p>
+  <h2>THE PICTURE IS THE HALF THAT PAYS</h2>
+  <p>Shipping the fireworks at all costs the budget real bytes, and the effect here is the golfed one:
+  2px squares relying on the canvas fade for their trail, rather than the cut&rsquo;s six-position
+  stroked comets. That trade is what made it nearly fit.</p>
+</div>
+
+<script>
+/* ------------------------------------------------------------- the sound */
+/* burst() from src/sfx.ts, verbatim apart from the mute flag and the kettle
+   switch this page adds. */
+let AC = null;
+const ac = () => {
+  if (!AC) AC = new AudioContext();
+  if (AC.state === "suspended") AC.resume();
+  return AC;
+};
+let muted = false, kettle = false;
+let REPORT = null, CRACKLE = null, STEAM = null;
+function fwBuffers(c) {
+  if (REPORT) return;
+  const sr = c.sampleRate;
+  REPORT = c.createBuffer(1, (sr * 0.8) | 0, sr);
+  const r = REPORT.getChannelData(0);
+  for (let i = 0; i < r.length; i++) r[i] = Math.random() * 2 - 1;
+  CRACKLE = c.createBuffer(1, (sr * 1.6) | 0, sr);
+  const k = CRACKLE.getChannelData(0);
+  for (let i = 0; i < k.length; i++) k[i] = Math.random() < 0.004 ? Math.random() * 2 - 1 : 0;
+  // The mistake, kept so it can be heard rather than described: the same
+  // duration filled densely. This is NOT in the game.
+  STEAM = c.createBuffer(1, (sr * 1.6) | 0, sr);
+  const s = STEAM.getChannelData(0);
+  for (let i = 0; i < s.length; i++) s[i] = Math.random() * 2 - 1;
+}
+function burst(pan, hue) {
+  if (muted) return;
+  try {
+    const c = ac();
+    fwBuffers(c);
+    const t = c.currentTime;
+    const m = c.createGain(), p = c.createStereoPanner();
+    m.gain.value = 0.15;
+    p.pan.value = pan;
+    m.connect(p).connect(c.destination);
+
+    const o = c.createOscillator(), og = c.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(120, t);
+    o.frequency.exponentialRampToValueAtTime(38, t + 0.3);
+    og.gain.setValueAtTime(0.55, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    o.connect(og).connect(m);
+    o.start(t);
+    o.stop(t + 0.5);
+
+    const n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
+    n.buffer = REPORT;
+    nf.type = "bandpass";
+    nf.frequency.value = 400 + hue * 4;
+    nf.Q.value = 0.7;
+    ng.gain.setValueAtTime(0.4, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    n.connect(nf).connect(ng).connect(m);
+    n.start(t);
+
+    const k = c.createBufferSource(), kf = c.createBiquadFilter(), kg = c.createGain();
+    k.buffer = kettle ? STEAM : CRACKLE;
+    kf.type = "highpass";
+    kf.frequency.value = 1200 + hue * 6;
+    kg.gain.setValueAtTime(0, t);
+    kg.gain.linearRampToValueAtTime(0.5, t + 0.06);
+    kg.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    k.connect(kf).connect(kg).connect(m);
+    k.start(t);
+  } catch (e) {}
+}
+
+/* ----------------------------------------------------------- the picture */
+/* fireworks() from src/game.ts, verbatim apart from sizing to the stage
+   instead of the viewport, and the two lines that report each shell to the
+   table and the marker layer. */
+const fw = document.getElementById("fw");
+const mark = document.getElementById("mark");
+const log = document.getElementById("log");
+let show = false, shells = 0;
+
+function report(x, y, w, h, hue, pan) {
+  shells++;
+  const row = document.createElement("tr");
+  row.innerHTML =
+    "<td>" + shells + "</td><td>" + Math.round(x) + "px</td><td><b>" + pan.toFixed(3) +
+    "</b></td><td><span class='sw' style='background:hsl(" + hue + " 95% 62%)'></span> " + hue +
+    "</td><td>" + (400 + hue * 4) + "</td><td>" + (1200 + hue * 6) + "</td>";
+  log.prepend(row);
+  if (!show) return;
+  const ns = "http://www.w3.org/2000/svg";
+  const g = document.createElementNS(ns, "g");
+  const c = document.createElementNS(ns, "circle");
+  c.setAttribute("cx", x); c.setAttribute("cy", y); c.setAttribute("r", 16);
+  c.setAttribute("fill", "none");
+  c.setAttribute("stroke", "hsl(" + hue + " 95% 62%)");
+  const tx = document.createElementNS(ns, "text");
+  tx.setAttribute("x", x); tx.setAttribute("y", y + 32);
+  tx.setAttribute("text-anchor", "middle");
+  tx.setAttribute("fill", "#cfe3ff");
+  tx.setAttribute("font", "11px monospace");
+  tx.setAttribute("font-size", "11");
+  tx.setAttribute("font-family", "monospace");
+  tx.textContent = "pan " + pan.toFixed(2);
+  g.append(c, tx);
+  mark.appendChild(g);
+  setTimeout(() => g.remove(), 1800);
+}
+
+function fireworks(span) {
+  const g = fw.getContext("2d");
+  const stage = document.getElementById('stage');
+  const w = fw.width = stage.clientWidth, h = fw.height = stage.clientHeight;
+  const P = [];
+  let last = 0, next = 1e9;
+  const step = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    span -= dt;
+    if (span < next && span > 0) {
+      const x = (0.16 + Math.random() * 0.68) * w, y = (0.2 + Math.random() * 0.24) * h,
+        hue = (Math.random() * 360) | 0, c = "hsl(" + hue + " 95% 62%)";
+      for (let i = 26; i--;) {
+        const a = i * 0.2416, s = 60 + Math.random() * 100;
+        P.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, c, t: 1.1 + Math.random() * 0.8 });
+      }
+      // the two lines the game does not have: the burst, and the readout
+      burst(x / w * 2 - 1, hue);
+      report(x, y, w, h, hue, x / w * 2 - 1);
+      next = span - 0.12 - Math.random() * 0.12;
+    }
+    g.globalAlpha = 1;
+    g.fillStyle = "#0004";
+    g.fillRect(0, 0, w, h);
+    for (let i = P.length; i--;) {
+      const p = P[i];
+      if ((p.t -= dt) < 0) { P.splice(i, 1); continue; }
+      p.vy += (88 - p.vy) * dt;
+      p.vx -= p.vx * dt;
+      g.globalAlpha = p.t / 2;
+      g.fillStyle = p.c;
+      g.fillRect(p.x += p.vx * dt, p.y += p.vy * dt, 2, 2);
+    }
+    if (P.length || span > 0) requestAnimationFrame(step);
+    else fw.width = 0;
+  };
+  requestAnimationFrame(step);
+}
+
+/* -------------------------------------------------------------- controls */
+const bMute = document.getElementById("bMute");
+const bShow = document.getElementById("bShow");
+const bKettle = document.getElementById("bKettle");
+const play = (span) => { log.innerHTML = ""; shells = 0; mark.innerHTML = ""; fireworks(span); };
+document.getElementById("bQuest").onclick = () => play(1.6);
+document.getElementById("bFull").onclick = () => play(3.2);
+bMute.onclick = () => {
+  muted = !muted;
+  bMute.textContent = "sound: " + (muted ? "off" : "on");
+  bMute.classList.toggle("on", muted);
+};
+bShow.onclick = () => {
+  show = !show;
+  bShow.textContent = "mapping: " + (show ? "on" : "off");
+  bShow.classList.toggle("on", show);
+};
+bKettle.onclick = () => {
+  kettle = !kettle;
+  bKettle.textContent = "crackle: " + (kettle ? "DENSE (the mistake)" : "sparse");
+  bKettle.classList.toggle("on", kettle);
+};
+document.getElementById("notes").style.display = "";
+onkeydown = (e) => {
+  const k = e.key.toLowerCase();
+  if (k === "1") play(1.6);
+  else if (k === "2") play(3.2);
+  else if (k === "m") bMute.click();
+  else if (k === "s") bShow.click();
+  else if (k === "k") bKettle.click();
+  else if (k === "c") {
+    const n = document.getElementById("notes");
+    n.style.display = n.style.display === "none" ? "" : "none";
+  }
+};
+</script>
+</body>
+</html>

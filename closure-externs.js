@@ -94,3 +94,13 @@ var caElement = {};
 /** @type {?} */ caElement.e;
 /** @type {?} */ caElement.s;
 /** @type {?} */ caElement.r;
+
+// BARE GLOBALS. The bundle is top-level classic-script code, so `window.` is a
+// prefix it never has to write: `addEventListener(...)` resolves to the global,
+// and `onkeydown` is a WebIDL attribute already on window, so assigning to it
+// sets the same property in strict or sloppy mode. The pinned 2021 compiler
+// does not know either name unprefixed and fails the build with
+// JSC_UNDEFINED_VARIABLE — loudly, unlike `passive`, but the fix is the same
+// one this file exists for. Externs are declarations only; they add no output.
+/** @type {?} */ var addEventListener;
+/** @type {?} */ var onkeydown;

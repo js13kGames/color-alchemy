@@ -15,6 +15,24 @@ const page = fileURLToPath(new URL(process.argv[2] || "./dist/bundle.html", impo
 const t = await launch({ url: page });
 const { evalJs, send, sleep } = t;
 
+// THE FIREWORKS ASSERTIONS RECORD A PEAK, THEY DO NOT READ A LIVE VALUE, and
+// that is a race this suite actually lost. fireworks() zeroes the bitmap when
+// its last spark dies — about five seconds after the card opens — so reading
+// fw.width at assertion time asks whether the effect is STILL running, not
+// whether it ran. On a loaded machine it is not, and the gate failed two runs
+// in four against builds that were perfectly fine. Hooking the setter records
+// the largest width ever assigned, which cannot expire; the quest cards then
+// reset it so "every card ran the fireworks" stays a per-card claim rather than
+// one global peak standing in for all of them.
+await evalJs(`(() => {
+  const d = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, "width");
+  window.__fwMax = 0;
+  Object.defineProperty(HTMLCanvasElement.prototype, "width", {
+    get() { return d.get.call(this); },
+    set(v) { window.__fwMax = Math.max(window.__fwMax, v); d.set.call(this, v); },
+  });
+})()`);
+
 /* --------------------------------------------------------------- driving it
    Nothing is exposed on window: the bundle ships no test hooks, so every helper
    here goes through the surface a player touches — clicks on tiles, keys on
@@ -892,7 +910,8 @@ const RAINBOW_ONLY = order(new Set(["rainbow", ...union("sun", "rain")]), ["rain
 const KEEP = `const k = [...document.querySelectorAll('#ob button')]
     .find(x => x.textContent === 'Continue');
   if (k) { const c = document.getElementById('fw');
-    (window.__seen = window.__seen || []).push({ t: oc.textContent, fw: c ? c.width : -1 });
+    (window.__seen = window.__seen || []).push({ t: oc.textContent, fw: c ? window.__fwMax : -1 });
+    window.__fwMax = 0;
     k.click(); }`;
 const run = async (pairs, keep) => {
   for (const [a, b] of pairs) {
@@ -956,7 +975,7 @@ check("quest: overlay reports the move count",
 // __seen; this is the one the suite can stop on.
 const FW = await evalJs(`!!document.getElementById('fw')`);
 if (FW) {
-  const w = await evalJs(`document.getElementById('fw').width`);
+  const w = await evalJs(`window.__fwMax`);
   check("quest: the fireworks canvas is live behind the quest card too", w > 0 && w !== 300);
 } else {
   check("quest: no fireworks canvas on a quest card — director's-cut only",
@@ -1081,7 +1100,7 @@ check("full: the completion screen cancels the discovery card here too",
 // do, so both cuts are actually tested.
 const FIREWORKS = await evalJs(`!!document.getElementById('fw')`);
 if (FIREWORKS) {
-  const fwWidth = await evalJs(`document.getElementById('fw').width`);
+  const fwWidth = await evalJs(`window.__fwMax`);
   check("full: the fireworks canvas is live behind the card", fwWidth > 0 && fwWidth !== 300);
 } else {
   check("full: no fireworks canvas — the effect is director's-cut only",
