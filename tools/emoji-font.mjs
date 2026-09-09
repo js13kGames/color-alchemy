@@ -85,7 +85,7 @@ const RECIPE = "colr1+nospace";
 // served that way; the container changed and the compression step went with it,
 // because a woff2 is only a compressed wrapper around exactly these bytes.
 // The cost is real and it is paid over the wire, not in the 13312: the same
-// 245 sequences are 549 KB as a ttf against 255 KB as a woff2, and 351 KB of
+// 245 sequences are 549 KB as a ttf against 255 KB as a woff2, and 352 KB of
 // that ttf once a server gzips it — woff2 is brotli plus a glyf transform, and
 // deflate does not catch up. The zip the cut ships in pays the same. Nothing in
 // the budget moves, because the shipping build only ever names a URL, and the

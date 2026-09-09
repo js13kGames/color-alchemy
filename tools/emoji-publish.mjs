@@ -30,8 +30,8 @@
 // A TTF, NOT A WOFF2, and the difference is a download rather than a byte of
 // budget: the shipping build only ever NAMES this URL, so the 13312 never sees
 // the font at all, but a player who presses Load emoji font now pulls 549 KB
-// instead of 255 KB — 351 KB of it if the host gzips, which GitHub Pages does
-// for font/ttf. Leave the old emoji.woff2 served alongside it for as long as any
+// instead of 255 KB — 352 KB of it on the wire, measured against Pages, which
+// serves this as font/ttf with Content-Encoding: gzip. Leave the old emoji.woff2 served alongside it for as long as any
 // published build still asks for that name.
 import { copyFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
