@@ -79,6 +79,17 @@ export function findNanoemoji() {
 // does to nanoemoji's output changes, or every machine with a warm .fonts/ cache
 // keeps serving the previous shape of the font forever.
 const RECIPE = "colr1+nospace";
+
+// THE CACHED ARTIFACT IS THE TTF, which is nanoemoji's own output with U+0020
+// unclaimed and nothing else done to it. It used to be packed to woff2 here and
+// served that way; the container changed and the compression step went with it,
+// because a woff2 is only a compressed wrapper around exactly these bytes.
+// The cost is real and it is paid over the wire, not in the 13312: the same
+// 245 sequences are 549 KB as a ttf against 255 KB as a woff2, and 351 KB of
+// that ttf once a server gzips it — woff2 is brotli plus a glyf transform, and
+// deflate does not catch up. The zip the cut ships in pays the same. Nothing in
+// the budget moves, because the shipping build only ever names a URL, and the
+// filename is two characters shorter.
 const keyOf = (stems) =>
   createHash("sha256").update(RECIPE + "\n" + stems.sort().join(",")).digest("hex").slice(0, 12);
 
@@ -86,13 +97,13 @@ export async function buildEmojiFont({ elementsTs, uiTs, log = () => {} }) {
   const { seqs } = await fetchEmojiSvgs({ elementsTs, uiTs, log });
   const stems = [...seqs.keys()];
   const key = keyOf(stems);
-  const woff2Path = join(CACHE, `emoji-${key}.woff2`);
-  const name = `emoji-${key}.woff2`;
+  const ttfPath = join(CACHE, `emoji-${key}.ttf`);
+  const name = `emoji-${key}.ttf`;
 
-  if (existsSync(woff2Path)) {
-    const woff2 = readFileSync(woff2Path);
-    log(`emoji-font: cached ${name}, ${(woff2.length / 1024).toFixed(0)} KB`);
-    return { woff2, name, seqs };
+  if (existsSync(ttfPath)) {
+    const ttf = readFileSync(ttfPath);
+    log(`emoji-font: cached ${name}, ${(ttf.length / 1024).toFixed(0)} KB`);
+    return { ttf, name, seqs };
   }
 
   const tools = findNanoemoji();
@@ -112,11 +123,9 @@ export async function buildEmojiFont({ elementsTs, uiTs, log = () => {} }) {
 
   const ttf = unclaimSpace(readFileSync(join(buildDir, "emoji.ttf")), log);
   await verifyRendering(ttf, seqs, log);
-  const { compress } = await import("wawoff2");
-  const woff2 = Buffer.from(await compress(ttf));
-  writeFileSync(woff2Path, woff2);
-  log(`emoji-font: ${(ttf.length / 1024).toFixed(0)} KB ttf -> ${(woff2.length / 1024).toFixed(0)} KB woff2`);
-  return { woff2, name, seqs };
+  writeFileSync(ttfPath, ttf);
+  log(`emoji-font: ${name}, ${(ttf.length / 1024).toFixed(0)} KB ttf`);
+  return { ttf, name, seqs };
 }
 
 // TAKE THE SPACE BACK OFF THE FONT, because a font that claims U+0020 cannot

@@ -58,9 +58,13 @@ const face = (family, name, publicPath, range) =>
 
 // Wipes the previous build's chunks so a font revision cannot leave a stale
 // file riding along in the zip. Called once, before either font is fetched.
+// BOTH EXTENSIONS, because the cut serves two containers now: the built emoji
+// face is a ttf and the title subset is whatever Google hands back, which is a
+// woff2. Sweeping only one of them is how a renamed font leaves its predecessor
+// behind in dist/fonts to be zipped up beside it forever.
 export function resetFontDir(outDir) {
   mkdirSync(outDir, { recursive: true });
-  for (const f of readdirSync(outDir)) if (f.endsWith(".woff2")) rmSync(join(outDir, f));
+  for (const f of readdirSync(outDir)) if (/\.(woff2|ttf)$/.test(f)) rmSync(join(outDir, f));
 }
 
 /* ------------------------------------------------------------------ emoji */
@@ -104,7 +108,8 @@ export function uiCodepointsOf(uiTs) {
 // TWO WAYS TO GET THE EMOJI, and the first one is tried first.
 //
 // BUILT (tools/emoji-font.mjs): nanoemoji compiles Noto's own source SVGs into
-// a COLRv1 font holding exactly the 245 sequences this table shows — 237 KB.
+// a COLRv1 font holding exactly the 245 sequences this table shows — 549 KB as
+// the ttf it is now served as, 351 KB of that once anything deflates it.
 // Needs Python with nanoemoji and ninja.
 //
 // FETCHED (below): nine of Google's ten CDN chunks, 1317 KB, because a
@@ -120,10 +125,13 @@ export async function emojiFontCss({ elementsTs, uiTs, outDir, publicPath, log =
   const { buildEmojiFont } = await import("./emoji-font.mjs");
   const built = await buildEmojiFont({ elementsTs, uiTs, log });
   if (built) {
-    writeFileSync(join(outDir, built.name), built.woff2);
+    writeFileSync(join(outDir, built.name), built.ttf);
+    // format("truetype") to match the container. The hint is advisory — every
+    // browser sniffs the real thing — but a wrong one is a lie the next reader
+    // has to catch, and the CDN chunks below still genuinely are woff2.
     return (
       `@font-face{font-family:"Noto Color Emoji";font-style:normal;font-weight:400;` +
-      `src:url(${publicPath}${built.name}) format("woff2")}` +
+      `src:url(${publicPath}${built.name}) format("truetype")}` +
       `body{font-family:monospace,"Noto Color Emoji"}`
     );
   }

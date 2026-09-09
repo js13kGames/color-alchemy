@@ -172,8 +172,8 @@ const cutDirectorCss = (css) =>
 // THIS PROJECT'S OWN Pages path, and deliberately not the shortest one that
 // works. Every character of the URL is in the payload, so the user site — the
 // repo literally named joseprio.github.io — was measured at //joseprio.github
-// .io/e.woff2 and is worth about 8 B: the /color-alchemy/ prefix is fixed by
-// this repo's name, and `e.woff2` shaves the filename too. It was taken and
+// .io/e.ttf and is worth about 8 B: the /color-alchemy/ prefix is fixed by
+// this repo's name, and `e.ttf` shaves the filename too. It was taken and
 // then GIVEN BACK once the help line freed 93 B, because those 8 B cost the
 // publish flow a whole second repository: `npm run emoji-publish` stages the
 // file here and you commit it here, which is one step, and the tool's own
@@ -200,7 +200,7 @@ const cutDirectorCss = (css) =>
 // tools/emoji-font.mjs, which unclaims U+0020 before the font is packed; a
 // range here would have papered over a font that was still lying about itself.
 const GOLF_EMOJI_CSS = golf
-  ? `@font-face{font-family:e;src:url(//joseprio.github.io/color-alchemy/emoji.woff2)}`
+  ? `@font-face{font-family:e;src:url(//joseprio.github.io/color-alchemy/emoji.ttf)}`
   : "";
 const minCss = execSync("npx postcss", {
   input: cutDirectorCss(readFileSync("src/style.css", "utf8")),

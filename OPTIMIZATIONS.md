@@ -29,11 +29,15 @@ the part that travels.
   minifies the page with **html-minifier-next**, zips it with fixed DOS-epoch
   timestamps, and recompresses that zip with **ECT then advzip**. Dev
   (`npm start`) skips the whole tail, so a watch build stays readable and fast.
-- **The director's cut builds its own emoji font, and it is 237 KB instead of
-  1317.** `tools/emoji-font.mjs` fetches Noto's source SVGs for exactly the 245
-  sequences the table shows (`tools/emoji-svg.mjs`, keyed off `e:` fields, so
-  adding an element fetches its artwork on the next build) and compiles them
-  with **nanoemoji** into a COLRv1 font. Needs Python with `nanoemoji` and
+- **The director's cut builds its own emoji font, and it holds 245 sequences
+  instead of nine whole CDN chunks.** `tools/emoji-font.mjs` fetches Noto's
+  source SVGs for exactly the 245 sequences the table shows
+  (`tools/emoji-svg.mjs`, keyed off `e:` fields, so adding an element fetches
+  its artwork on the next build) and compiles them with **nanoemoji** into a
+  COLRv1 font. It is served as the **549 KB** ttf nanoemoji emits, against
+  1317 KB of woff2 for the chunks — compare like for like and the same font is
+  255 KB packed to woff2 and 351 KB deflated, which is what the cut's zip
+  carries. Needs Python with `nanoemoji` and
   `ninja`; without them the cut still builds, falling back loudly to the nine
   CDN chunks it used before, which are five and a half times heavier and
   identical on screen. `npm run emoji-font` builds it alone. The whole font is

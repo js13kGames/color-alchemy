@@ -29,7 +29,7 @@ npm run build-director    # the director's cut: no budget, size-golf tail bar te
 npm test                  # 171 headless checks against dist/bundle.html
 node check.mjs dist/director.html   # the same checks against the director's cut
 npm start                 # dev: watch + serve on http://localhost:8080
-npm run emoji-publish     # rebuild the cut, copy its emoji subset to ./emoji.woff2
+npm run emoji-publish     # rebuild the cut, copy its emoji subset to ./emoji.ttf
 npm run roadroller-optimize   # re-fit rr-config.json after a structural change
 npm run fn-order-optimize     # re-fit fn-order.json after a source change
 npm run fouc-check        # is the sheet in place before the first paint?
@@ -60,9 +60,9 @@ subset from the element table at build time, so it is always in step. The
 shipping build cannot afford 250 KB in a 13 KB budget, so it names a hosted file
 at a URL fixed in `rollup.config.mjs`; nothing in the build writes that file, so
 after adding an element with a new emoji, run `npm run emoji-publish` and
-republish the `emoji.woff2` it drops in the repo root. Until then the new glyph
+republish the `emoji.ttf` it drops in the repo root. Until then the new glyph
 falls back to the player's own emoji set. The shorter `//joseprio.github.io/
-e.woff2` was measured at about 8 B and given back — it moved the served file
+e.ttf` was measured at about 8 B and given back — it moved the served file
 into a second repository, and one publish step is easier to remember than two.
 
 That hosted file is also the shipping build's only reference off the page, so it

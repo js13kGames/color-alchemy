@@ -166,7 +166,7 @@ if (DIRECTOR) {
   const page = readFileSync(BUNDLE_FILE);
   const entries = [["index.html", page]];
   const fontDir = "./dist/fonts";
-  const fonts = existsSync(fontDir) ? readdirSync(fontDir).filter(f => f.endsWith(".woff2")).sort() : [];
+  const fonts = existsSync(fontDir) ? readdirSync(fontDir).filter(f => /\.(woff2|ttf)$/.test(f)).sort() : [];
   for (const f of fonts) entries.push([`fonts/${f}`, readFileSync(`${fontDir}/${f}`)]);
   if (!fonts.length) {
     throw new Error("postbuild: the cut has no font chunks in dist/fonts — did the emoji-font plugin run?");

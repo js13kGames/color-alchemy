@@ -1611,7 +1611,7 @@ check(`hint: ${graded} graded of 5, ${offPath} of ${offered} offers off the ques
 // RULE landing in the sheet and the preference sticking — not glyphs, which
 // would make the suite need the network.
 const fontRule = () =>
-  evalJs(`/@font-face[^}]*woff2/.test(document.getElementById('st').textContent)`);
+  evalJs(`/@font-face[^}]*\\.ttf/.test(document.getElementById('st').textContent)`);
 if (!GOLFBUILD) {
   console.log("skip 5 emoji-font checks — this build has no hosted font to load");
 } else {
