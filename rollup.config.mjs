@@ -95,9 +95,10 @@ const injectCss = {
     if (!code.includes("__MARKUP__ = ") && !code.includes("__MARKUP__;")) {
       throw new Error("inject-css: src/css.ts no longer mentions __MARKUP__");
     }
-    // GOLF_EMOJI_CSS is empty unless this is a shipping build, fontCss unless
-    // it is a director one — the two are never both set.
-    const sheet = minCss + GOLF_EMOJI_CSS + fontCss;
+    // fontCss is the director's cut's own faces, and empty in every other
+    // build. The shipping build's emoji @font-face is NOT here: it rides in
+    // __EMOJI__ and is inserted at runtime, only once the player has asked.
+    const sheet = minCss + fontCss;
     return { code: code.replace(/__MARKUP__/g, () => JSON.stringify(sheet)), map: null };
   },
 };
@@ -161,15 +162,34 @@ const cutDirectorCss = (css) =>
 // knowing that most size-limited competitions require an entry to run with no
 // network at all; under those rules this rule is the one thing to take out.
 //
+// WHICH IS WHY IT IS NO LONGER IN THE SHEET AT BUILD TIME. This is handed to
+// src/css.ts as __EMOJI__, and nothing appends it until the player asks for it
+// from the title menu — so an entry judged with the network off never reaches
+// for the URL at all, and one played with the network on gets the artwork on
+// the first press and on every run after it.
+//
 // Protocol-relative so the page works from file:// as well as over https.
-// Appended AFTER cssnano for the reason the director's font rules are: nothing
-// should get to rewrite a src url on the way through.
+// THIS PROJECT'S OWN Pages path, and deliberately not the shortest one that
+// works. Every character of the URL is in the payload, so the user site — the
+// repo literally named joseprio.github.io — was measured at //joseprio.github
+// .io/e.woff2 and is worth about 8 B: the /color-alchemy/ prefix is fixed by
+// this repo's name, and `e.woff2` shaves the filename too. It was taken and
+// then GIVEN BACK once the help line freed 93 B, because those 8 B cost the
+// publish flow a whole second repository: `npm run emoji-publish` stages the
+// file here and you commit it here, which is one step, and the tool's own
+// header is a warning about how easily that one step is already forgotten.
+// If the budget ever needs 8 B badly enough, the short URL is live and works
+// (both paths serve the same file today) — but read emoji-publish.mjs first.
+// Written by hand and never run through cssnano, for the reason the director's
+// font rules skip it too: nothing should get to rewrite a src url on the way
+// through.
 // NOT in src/style.css, because that file is shared with the cut, and the cut
 // has a real font of its own to name.
 // Only the @font-face: the family is NAMED in style.css's own body shorthand
-// (`font: 14px/1.45 emoji, monospace`), which is 7 characters there against 33
-// for a `body{font-family:emoji,monospace}` rule appended here. The name is
-// inert in the builds that do not define it.
+// (`font: 14px/1.45 e, monospace`), which is 3 characters there against 29 for
+// a `body{font-family:e,monospace}` rule appended here. The name is inert in
+// the builds that do not define it, and it is ONE LETTER because it is written
+// twice — here and there — and never read by anything but the CSS engine.
 //
 // NO unicode-range, and that is a claim about the FONT: style.css leads with
 // this family so the colour artwork beats whatever emoji coverage the platform
@@ -180,7 +200,7 @@ const cutDirectorCss = (css) =>
 // tools/emoji-font.mjs, which unclaims U+0020 before the font is packed; a
 // range here would have papered over a font that was still lying about itself.
 const GOLF_EMOJI_CSS = golf
-  ? `@font-face{font-family:emoji;src:url(//joseprio.github.io/color-alchemy/emoji.woff2)}`
+  ? `@font-face{font-family:e;src:url(//joseprio.github.io/color-alchemy/emoji.woff2)}`
   : "";
 const minCss = execSync("npx postcss", {
   input: cutDirectorCss(readFileSync("src/style.css", "utf8")),
@@ -193,9 +213,19 @@ const defines = {
   name: "defines",
   transform(code, id) {
     if (!id.endsWith(".ts")) return null;
-    if (!code.includes("__DEV__") && !code.includes("__DIRECTOR__")) return null;
+    if (!/__DEV__|__DIRECTOR__|__GOLF__|__EMOJI__/.test(code)) return null;
     return {
-      code: code.replace(/__DEV__/g, String(DEV)).replace(/__DIRECTOR__/g, String(DIRECTOR)),
+      code: code
+        .replace(/__DEV__/g, String(DEV))
+        .replace(/__DIRECTOR__/g, String(DIRECTOR))
+        // __GOLF__ is what gates the "Load emoji font" menu entry: only a
+        // shipping build has a font to fetch, the cut carries its own and dev
+        // has none, so in those two the literal false lets closure (or simply
+        // nobody, in the builds that skip it) drop the entry.
+        .replace(/__GOLF__/g, String(golf))
+        // ...and the rule it appends. A function replacement, so a $ in the
+        // URL could never be read as a capture reference.
+        .replace(/__EMOJI__/g, () => JSON.stringify(GOLF_EMOJI_CSS)),
       map: null,
     };
   },

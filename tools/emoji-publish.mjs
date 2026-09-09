@@ -8,13 +8,19 @@
 // a 13 KB budget, so it names a hosted one instead, at a URL fixed in
 // rollup.config.mjs:
 //
-//   @font-face{font-family:emoji;src:url(//joseprio.github.io/color-alchemy/emoji.woff2)}
+//   @font-face{font-family:e;src:url(//joseprio.github.io/color-alchemy/emoji.woff2)}
 //
 // Nothing in the build writes that file. So every time the element table gains
 // an emoji, the shipped game silently falls back to the player's own set for it
 // — not broken, just not the artwork the rest of the board is drawn in — until
 // somebody regenerates the subset and republishes it. This is that step, made
 // one command instead of a hunt through a hash-named cache.
+//
+// PUBLISHED FROM THIS REPO, which is the point of using this project's Pages
+// path rather than the shorter user-site one. The short URL was measured at
+// about 8 B and given back: it put the served file in a second repository, and
+// a two-repo publish step is one more place for the staleness this header
+// warns about to creep in. rollup.config.mjs records that trade.
 //
 // THE NAME IS NOT A CHOICE. The @font-face above asks for `emoji.woff2` exactly;
 // the file has to be served under that name for any of this to work. The build

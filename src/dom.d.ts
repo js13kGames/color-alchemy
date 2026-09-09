@@ -40,6 +40,17 @@ declare const __DECODE__: unknown;
 // plugin. Declared here for the same reason __DECODE__ is: the plugin replaces
 // every occurrence of the name in src/css.ts.
 declare const __BODY__: string;
+// True only for a SHIPPING build — production and not the director's cut, the
+// same flag rollup.config.mjs gates the whole size-golf tail on. It is what
+// the "Load emoji font" menu entry hangs off: only that build fetches a face
+// from the network, so only that build has anything to offer.
+declare const __GOLF__: boolean;
+// The @font-face rule that defines the `e` family, built in
+// rollup.config.mjs and empty outside a shipping build. src/css.ts inserts it
+// when the player asks for it. HERE and not in css.ts for the reason __BODY__
+// is: `defines` rewrites every occurrence of the name in that file, and a
+// declaration living there would be rewritten into a syntax error.
+declare const __EMOJI__: string;
 declare const sn: HTMLElement;   // Music button
 declare const mn: HTMLElement;   // Menu button
 declare const dk: HTMLElement;   // docked cauldron strip

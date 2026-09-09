@@ -30,10 +30,19 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
-  /* `emoji` is the family the SHIPPING build defines with an @font-face in
-     rollup.config.mjs; it rides in the shorthand here rather than in a rule of
-     its own because appending `body{font-family:emoji,monospace}` to the sheet
-     costs 33 characters and this costs 7. Inert everywhere else: nothing
+  /* `e` is the family the SHIPPING build defines with an @font-face built in
+     rollup.config.mjs and appended to this sheet at RUNTIME, by src/css.ts, and
+     only once the player has pressed Load emoji font — the rule names a hosted
+     file, and a page that fetches it unasked is not self-contained. ONE LETTER
+     for the reason the ids and classes are: the name is written twice, here and
+     in the @font-face, and `emoji` cost 8 characters over `e` for a string
+     nobody reads. It is a custom-ident, so the only names it may not take are
+     the CSS-wide keywords and the generic families — a single letter is neither,
+     and it cannot collide with the cut's own faces ("Noto Color Emoji", "IM Fell
+     English"), which are quoted and multi-word. The family rides in the
+     shorthand here rather than in a rule of its own because appending
+     `body{font-family:e,monospace}` to the sheet costs 29 characters and this
+     costs 3. Inert until pressed, and inert for good everywhere else: nothing
      defines the family in a dev build, and the director's cut overrides the
      whole font-family with its own Noto face further down the sheet.
      FIRST, not last: a family the page names is tried before the browser's own
@@ -49,9 +58,20 @@ body {
      which made the hosted build read visibly airier than a local one, where the
      face cannot load at all. tools/emoji-font.mjs unclaims U+0020 now. A face
      carrying latin glyphs restyles the whole UI from here, and one did. */
-  margin: 0; background: #001; color: #cdf; font: 14px/1.45 emoji, monospace;
+  margin: 0; background: #001; color: #cdf; font: 14px/1.45 e, monospace;
   display: flex; flex-direction: column; align-items: center;
   touch-action: manipulation; overflow-x: hidden;
+  /* A warm magenta wash top-right and a cold teal one bottom-left, fixed so
+     they sit still while the board scrolls. IN BOTH CUTS, and they were briefly
+     not: moving them behind the director markers measured -44 B, which is real
+     money at this budget, and they came back once the help line paid for them
+     more cheaply. Recorded because it is the obvious lever to reach for again —
+     it works, it just costs the page its depth, and the help line was 93 B of
+     prose a player does not need twice.
+     The flat #001 above could NEVER go with them: it is the only full-page
+     background in the sheet — #ds and #ov paint overlays, not the page — so
+     cutting it leaves a white default under #cdf text. Unreadable, not merely
+     plainer. If these ever have to leave again, the colour stays. */
   background-attachment: fixed;
   background-image:
     radial-gradient(1200px 600px at 80% -10%, #213 0%, transparent 60%),
@@ -264,8 +284,16 @@ body {
    not margin: a trailing margin — and body's own padding, body being height:100%
    with overflowing content — is clipped from the scrollable overflow. Padding
    inside the last element is real box height, so it survives. */
+/* color and font-size style THE HELP LINE AND NOTHING ELSE, so they leave with
+   it: src/css.ts appends that text only in the cut, and the one other thing in
+   here, #gl, sets its own #8bd and 13px and overrides both. What stays is
+   structural and still needed for the goal line — the centring, and the margin
+   and padding that clear the dock. */
 f {
-  margin: 4px 0 18px; color: #578; font-size: 11px;
+  margin: 4px 0 18px;
+  /*>director*/
+  color: #578; font-size: 11px;
+  /*<director*/
   text-align: center; padding: 0 12px calc(var(--dock) + 8px);
 }
 
@@ -398,12 +426,11 @@ f {
   align-items: center; justify-content: center; background: #001c;
 }
 .v.w { display: flex; }
-/* The completion fireworks, DIRECTOR'S CUT ONLY. The effect itself is behind
-   __DIRECTOR__ in src/game.ts and closure deletes it from a shipping build,
-   which leaves no canvas for these rules to style; the director markers below
-   cut them the same way. rollup.config.mjs documents the markers — they cannot
-   be spelled out here, because a CSS comment quoting one would be matched by
-   the very regex it describes.
+/* The completion fireworks. THESE SHIP: the effect used to be behind
+   __DIRECTOR__, and this comment used to say so, but 767fe47 put it in the
+   budget and only burst() — the sound in src/sfx.ts — is director-only now.
+   The rules here are outside the director markers accordingly; the only ones
+   near this block wrap the reduced-motion overrides above.
    z-index: -1 inside .v — which IS a stacking context, being positioned with a
    z-index — puts the canvas above the veil's own background and below the card,
    in one property instead of a rule for each. */
@@ -420,6 +447,11 @@ f {
 #ov .A { border-color: #fd6; box-shadow: 0 0 50px #fd62; }
 #ov .T { color: #fd6; }
 .L { margin: 6px 0 0; color: #cdf; }
+/* Its own rule and NOT merged into #ov .T above, which carries the identical
+   declaration: the merge is 33 characters of CSS and measured +8 B packed,
+   because roadroller predicts the second `{color:#fd6}` from the first almost
+   for free and a novel four-way selector list costs more than the repeat did.
+   Same finding as the #ob/#mu .F pair. DO NOT tidy these together. */
 #ov .S { color: #fd6; }
 .N { color: #7f9; font-weight: 700; letter-spacing: .1em; }
 #ob { display: flex; gap: 12px; justify-content: center; margin-top: 18px; }

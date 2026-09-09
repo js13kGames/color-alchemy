@@ -40,14 +40,24 @@ await evalJs(`(() => {
    no DOM form is the recipe tree, which is read out of src/elements.ts instead;
    see RECIPE below for what that costs. */
 
-// The value is JSON-QUOTED, and it has to be: ids carry spaces ("white rice",
-// "french fries"), and `[data-id=white rice]` is not a selector — querySelector
-// throws on it. That went unnoticed for as long as it did because order() picks
-// the FIRST makeable pair, and every multi-word id happened to sit in a recipe
-// that had a single-word alternative earlier in the list. The Curry, whose only
-// route is White Rice + Chef, is the first pair with no way around it.
+// TILES ARE FOUND BY THEIR EXPANDO, not by an attribute: game.ts's addTile
+// writes the element id to a quoted `["z"]` on the tile rather than to
+// data-id, which is 7 B the budget wanted back. Quoted, so the name survives
+// closure in the shipping build and its absence in the cut — this suite drives
+// both, and `e.z` is spelled the same in each.
+// The value is still JSON-QUOTED, though the reason has changed: it used to be
+// that ids carry spaces ("white rice", "french fries") and `[data-id=white
+// rice]` is not a selector, which querySelector threw on. That went unnoticed
+// for as long as it did because order() picks the FIRST makeable pair, and
+// every multi-word id happened to sit in a recipe that had a single-word
+// alternative earlier in the list. The Curry, whose only route is White Rice +
+// Chef, is the first pair with no way around it. Now it is simply a string
+// literal in injected JS, which is a much duller reason to quote it, and the
+// spaces cannot break anything again.
+const tile = (id) =>
+  `[...document.querySelectorAll('.t')].find(e => e.z === ${JSON.stringify(id)})`;
 const tileClick = (id) =>
-  `document.querySelector('[data-id=${JSON.stringify(id)}]').dispatchEvent(new MouseEvent('click',{bubbles:true}))`;
+  `${tile(id)}.dispatchEvent(new MouseEvent('click',{bubbles:true}))`;
 // Emptying the altar, the way a player would, whichever state the pick is in:
 // a cyan (loose) pick locks on the next click and lets go on the one after, a
 // gold (locked) one lets go on the first. Two clicks on the cyan one and one on
@@ -79,7 +89,7 @@ const state = () => evalJs(`(() => {
   const tiles = [...document.querySelectorAll('.t')];
   const at = (c) => tiles.findIndex((t) => t.classList.contains(c));
   return JSON.stringify({
-    found: tiles.map((t) => t.dataset.id),
+    found: tiles.map((t) => t.z),
     moves: +document.getElementById('mv').textContent,
     questDone: !!run.q,
     fullDone: !!run.c,
@@ -103,7 +113,7 @@ const enterGame = () =>
 // The save file is ONE entry holding one array; these indexes mirror the
 // S_* constants in src/game.ts and src/store.ts.
 const SLOT = { tree: 0, run: 1, bestQuest: 2, bestFull: 3, codex: 4, mute: 5, bestPeace: 6,
-  bestColor: 7, bestCowa: 8, bestMatter: 9 };
+  bestColor: 7, bestCowa: 8, bestMatter: 9, emojiFont: 10 };
 const cellGet = (i) => evalJs(`(JSON.parse(localStorage.getItem("colorAlchemy") || "[]") || [])[${i}]`);
 const cellClear = (i) => evalJs(`(() => {
   const c = JSON.parse(localStorage.getItem("colorAlchemy") || "[]") || [];
@@ -157,8 +167,7 @@ check("colors: the block ends where it should — the 18th entry is not a color"
 // bests are scoped by a recipe-tree fingerprint, which now rides in slot 0
 // rather than being suffixed onto two key names
 const best = async (kind) => +((await cellGet(SLOT[kind])) || 0);
-const click = (id) =>
-  evalJs(`document.querySelector('[data-id=${JSON.stringify(id)}]').dispatchEvent(new MouseEvent('click',{bubbles:true}))`);
+const click = (id) => evalJs(tileClick(id));
 const key = (k, init = {}) =>
   evalJs(`window.dispatchEvent(new KeyboardEvent('keydown',
     Object.assign({key:${JSON.stringify(k)}}, ${JSON.stringify(init)})))`);
@@ -176,19 +185,27 @@ check("boot: 3 starter elements", s.found.length === 3 && s.moves === 0);
 check("boot: the goal line is status-only, so it says nothing yet",
   (await evalJs(`document.getElementById('gl').textContent`)) === "");
 
-// The help line is NOT in the template any more — src/css.ts appends it as a
-// text node with gl.after(), so it rides in the roadroller payload instead of
-// the zip's deflate stream (worth -17 B; the wordmark's seven spans were tried
-// the same way and cost +5, because repeated markup deflates better than the
-// code to generate it). It has no element of its own, so nothing but this
-// check would notice if it stopped being written.
-check("boot: the help line is appended into <f>, after the goal line",
-  await evalJs(`(() => {
+// "Load emoji font" is offered by the SHIPPING build only, and the same flag
+// says which build this is for everything else that differs. Asked here, before
+// anything presses that button — the press is the last block in this file, so
+// every check in between sees the column it expects.
+const GOLFBUILD = await evalJs(
+  `[...document.querySelectorAll('#mu button')].some(b => b.textContent === 'Load emoji font')`);
+
+// The help line is DIRECTOR'S CUT ONLY, and it is not in the template either —
+// src/css.ts appends it as a text node with gl.after(), so it rides in the
+// roadroller payload rather than the zip's deflate stream (worth -17 B; the
+// wordmark's seven spans were tried the same way and cost +5, because repeated
+// markup deflates better than the code to generate it). It has no element of
+// its own, so nothing but this check would notice if it stopped being written —
+// or, in a shipping build, if it started being written again.
+check(`boot: the help line ${GOLFBUILD ? "is absent from the shipping build" : "is appended into <f>, after the goal line"}`,
+  (await evalJs(`(() => {
     const f = document.querySelector("f");
     const t = f.textContent.replace(gl.textContent, "");
     return t.includes("tap one to pick") && t.includes("costs a move")
       && f.lastChild.nodeType === 3;
-  })()`));
+  })()`)) === !GOLFBUILD);
 
 // --- title screen ---------------------------------------------------------
 check("boot: title screen shows COLOR / AlchemY as one text node each",
@@ -222,7 +239,8 @@ check("boot: COLOR and AlchemY come out the same width", await evalJs(`(() => {
 // genuinely gone. `npm run build-dev` is the build that has them.
 const DEVBUILD = await evalJs(
   `[...document.querySelectorAll('#mu button')].some(b => b.textContent === 'Unlock all')`);
-const MENU_FRESH = "New game,Quests,Encyclopedia" +
+// GOLFBUILD is read further up, before the help-line check that also needs it.
+const MENU_FRESH = (GOLFBUILD ? "Load emoji font," : "") + "New game,Quests,Encyclopedia" +
   (DEVBUILD ? ",Unlock all,Reset everything" : "");
 check("boot: a fresh boot offers no Continue, having nothing to continue",
   (await evalJs(`[...document.querySelectorAll('#mu button')].map(b => b.textContent).join()`)) ===
@@ -245,7 +263,7 @@ check("pick: the first tap picks the element, loose — cyan, and no lock ring",
 // The lock is not colour alone: a padlock badge marks it on the tile and on the
 // cauldron slot, so gold-versus-cyan is not the only thing carrying the state.
 check("pick: a loose pick wears no padlock in either place",
-  (await evalJs(`getComputedStyle(document.querySelector('[data-id=red]'), '::after').content`)) === "none" &&
+  (await evalJs(`getComputedStyle(${tile('red')}, '::after').content`)) === "none" &&
   (await evalJs(`getComputedStyle(document.getElementById('ca'), '::before').content`)) === "none");
 await click("red");
 s = await state();
@@ -254,7 +272,7 @@ check("lock: the second tap on the same element locks it",
   await evalJs(`document.getElementById('ca').classList.contains('y')`) &&
   await evalJs(`document.getElementById('ca').textContent.includes('Red')`));
 check("lock: a padlock marks it on the tile AND in the cauldron",
-  (await evalJs(`getComputedStyle(document.querySelector('[data-id=red]'), '::after').content`)) === '"\u{1F512}"' &&
+  (await evalJs(`getComputedStyle(${tile('red')}, '::after').content`)) === '"\u{1F512}"' &&
   (await evalJs(`getComputedStyle(document.getElementById('ca'), '::before').content`)) === '"\u{1F512}"');
 await click("green");
 await sleep(100);
@@ -346,14 +364,14 @@ check("fail: the cauldron shakes and the tiles do not",
 // tile, so it only appears once there is a pair to be spent.
 await click("green");
 check("tried: picking one half of a failed pair marks the other",
-  await evalJs(`document.querySelector('[data-id=white]').classList.contains('x')`) &&
+  await evalJs(`${tile('white')}.classList.contains('x')`) &&
   // ...and an element is never tried against itself, so the pick never marks
-  !(await evalJs(`document.querySelector('[data-id=green]').classList.contains('x')`)));
+  !(await evalJs(`${tile('green')}.classList.contains('x')`)));
 // A SUCCESS MARKS TOO, which is the whole point of tracking tried pairs rather
 // than dead ones: red + green already made Yellow, Yellow is on the board, so
 // there is nothing left to find down that pair either.
 check("tried: a pair already performed is marked as well",
-  await evalJs(`document.querySelector('[data-id=red]').classList.contains('x')`));
+  await evalJs(`${tile('red')}.classList.contains('x')`));
 await release();
 check("tried: letting the pick go clears every mark",
   !(await evalJs(`!!document.querySelector('.t.x')`)));
@@ -380,7 +398,7 @@ check("dupe: a rediscovery gets no full-screen animation",
 check("dupe: the cauldron names the known result",
   await evalJs(`document.getElementById('cq').textContent.includes('already discovered')`));
 check("dupe: only the known result pulses",
-  (await evalJs(`[...document.querySelectorAll('.t.h')].map(t => t.dataset.id).join()`)) === "yellow");
+  (await evalJs(`[...document.querySelectorAll('.t.h')].map(t => t.z).join()`)) === "yellow");
 // the lock survived both mixes, and neither mixed-in element is left marked
 check("lock: a locked element survives every mix, and marks nothing else",
   s.sel === 1 && s.moves === 4 &&
@@ -419,10 +437,10 @@ check("menu: Escape backs out to the game", s.phase === "play");
 // real browser retargets them there too, so this mirrors live behavior.
 const drag = (fromId, toTarget) =>
   evalJs(`(() => {
-    const a = document.querySelector('[data-id=${fromId}]');
+    const a = ${tile(fromId)};
     const r = a.getBoundingClientRect();
     const to = ${toTarget
-      ? `document.querySelector('[data-id=${toTarget}]').getBoundingClientRect()`
+      ? `${tile(toTarget)}.getBoundingClientRect()`
       : `{ left: 5, top: innerHeight - 5, width: 0, height: 0 }`};
     const x1 = r.left + r.width / 2, y1 = r.top + r.height / 2;
     const x2 = to.left + to.width / 2, y2 = to.top + to.height / 2;
@@ -614,7 +632,7 @@ check("mute: pad Ⓧ turns the sound back on",
 check("hud: the mute button names the ACTION and both shortcuts",
   (await evalJs(`document.getElementById('sn').textContent`)) === "MuteM / Ⓧ");
 const sndLabel = () => evalJs(`document.getElementById('sn').firstChild.textContent`);
-// click() above finds TILES by data-id; the HUD buttons go by element id
+// click() above finds TILES by their `z` expando; HUD buttons go by element id
 const clickBtn = (id) => evalJs(`document.getElementById('${id}').click()`);
 await clickBtn("sn");
 // The WORD swaps, the LOOK does not: no dim class, no second border, so it still
@@ -647,8 +665,8 @@ const hintNamesAUsefulPair = async () => {
       .match(/^Hint: try (.+) [+] (.+) — costs a move$/);
     if (!m) return "null";
     const tiles = [...document.querySelectorAll('.t')];
-    const id = n => (tiles.find(t => t.querySelector('.n').textContent === n) || { dataset: {} }).dataset.id;
-    return JSON.stringify({ a: id(m[1]), b: id(m[2]), found: tiles.map(t => t.dataset.id) });
+    const id = n => (tiles.find(t => t.querySelector('.n').textContent === n) || {}).z;
+    return JSON.stringify({ a: id(m[1]), b: id(m[2]), found: tiles.map(t => t.z) });
   })()`));
   if (!r) return false;
   const made = RECIPE[[r.a, r.b].sort().join("+")];
@@ -658,7 +676,7 @@ const hintNamesAUsefulPair = async () => {
 const hintedPair = () => evalJs(`(() => {
   const m = document.getElementById('to').textContent.match(/^Hint: try (.+) [+] (.+) —/);
   const id = n => ([...document.querySelectorAll('.t')]
-    .find(t => t.querySelector('.n').textContent === n) || { dataset: {} }).dataset.id;
+    .find(t => t.querySelector('.n').textContent === n) || {}).z;
   return JSON.stringify(m ? [id(m[1]), id(m[2])] : null);
 })()`).then(JSON.parse);
 // The two tiles the toast names are the two that GLOW. Not a pulse any more:
@@ -669,8 +687,8 @@ const hintGlowsItsPair = () => evalJs(`(() => {
   const m = document.getElementById('to').textContent.match(/^Hint: try (.+) [+] (.+) —/);
   if (!m) return false;
   const id = n => ([...document.querySelectorAll('.t')]
-    .find(t => t.querySelector('.n').textContent === n) || { dataset: {} }).dataset.id;
-  const lit = [...document.querySelectorAll('.t.g')].map(t => t.dataset.id).sort();
+    .find(t => t.querySelector('.n').textContent === n) || {}).z;
+  const lit = [...document.querySelectorAll('.t.g')].map(t => t.z).sort();
   return JSON.stringify(lit) === JSON.stringify([id(m[1]), id(m[2])].sort());
 })()`);
 
@@ -741,7 +759,7 @@ check("hint: the glowing tiles breathe, and .z does not switch it off",
       && getComputedStyle(t).animationIterationCount === 'infinite');
   })()`));
 check("hint: the glow outlives the toast that announced it",
-  await evalJs(`[...document.querySelectorAll('.t.g')].map(t => t.dataset.id).sort().join()`)
+  await evalJs(`[...document.querySelectorAll('.t.g')].map(t => t.z).sort().join()`)
     === [...standing].sort().join());
 // make it, and the hint retires: the next one is a different pair, at full price
 await attempt(standing[0], standing[1]);
@@ -1031,14 +1049,14 @@ check("quest: Continue returns to the game", s.phase === "play" && !s.fullDone);
 check("quest: the goal line still says nothing — a finished quest is not a status",
   (await evalJs(`document.getElementById('gl').textContent`)) === "");
 check("night: icon is a starry violet-to-black swatch, not an emoji",
-  await evalJs(`!!document.querySelector('[data-id=night] .s')
-    && document.querySelector('[data-id=night] .s').style.background.includes('gradient')`));
+  await evalJs(`!!${tile('night')}.querySelector('.s')
+    && ${tile('night')}.querySelector('.s').style.background.includes('gradient')`));
 check("night: Black + Sky or Violet + Sky, and the two cost the same",
   RECIPE['black+sky'] === "night" &&
   RECIPE['sky+violet'] === "night");
 check("black: the one color no mixing of lights reaches, so it comes from the materials",
   RECIPE['charcoal+stone'] === "black" &&
-  await evalJs(`!!document.querySelector('[data-id=black] .s')`));
+  await evalJs(`!!${tile('black')}.querySelector('.s')`));
 
 // --- quests screen: quest best visible, full best still hidden ---------
 await key("Escape");
@@ -1111,10 +1129,10 @@ check("quests: every quest card ran the fireworks, not just the completion",
   [peaceCard, colorCard, cowaCard].every(c => FW ? c.fw > 0 && c.fw !== 300 : c.fw === -1));
 check("indigo: Newton's seventh band, between Blue and Violet",
   RECIPE['blue+violet'] === "indigo" &&
-  await evalJs(`!!document.querySelector('[data-id=indigo] .s')`));
+  await evalJs(`!!${tile('indigo')}.querySelector('.s')`));
 check("prism: icon is an inline SVG, sized by the same .s rules",
-  await evalJs(`!!document.querySelector('[data-id=prism] svg.s')`) &&
-  (await evalJs(`getComputedStyle(document.querySelector('[data-id=prism] svg.s')).width`)) === "32px");
+  await evalJs(`!!${tile('prism')}.querySelector('svg.s')`) &&
+  (await evalJs(`getComputedStyle(${tile('prism')}.querySelector('svg.s')).width`)) === "32px");
 check("full: overlay shows the hidden best",
   await evalJs(`document.getElementById('oc').textContent.includes("GOTTA CATCH 'EM ALL!")`) &&
   await evalJs(`document.getElementById('oc').textContent.includes('complete run')`));
@@ -1401,8 +1419,8 @@ await run([["water","air"]]);
 await key("Escape");
 await evalJs(`[...document.querySelectorAll('#mu button')].find(b => b.textContent === 'New game').click()`);
 check("menu: New game asks for confirmation",
-  await evalJs(`[...document.querySelectorAll('#mu button')][1].textContent.includes('Sure')`));
-await evalJs(`[...document.querySelectorAll('#mu button')][1].click()`);
+  await evalJs(`!![...document.querySelectorAll('#mu button')].find(b => b.textContent.includes('Sure'))`));
+await evalJs(`[...document.querySelectorAll('#mu button')].find(b => b.textContent.includes('Sure')).click()`);
 s = await state();
 check("menu: confirmed New game resets into play",
   s.phase === "play" && s.moves === 0 && s.found.length === 3);
@@ -1583,6 +1601,38 @@ for (let i = 0; i < 5; i++) {
 check(`hint: ${graded} graded of 5, ${offPath} of ${offered} offers off the quest path, ` +
   `${onPath} stayed on` + (fellBack ? `, ${fellBack} with no path pair left` : "") + wandered,
   offPath > 0 && graded > 0 && onPath === graded);
+
+// --- Load emoji font (shipping build only) --------------------------------
+// LAST IN THE FILE ON PURPOSE: pressing it writes slot 10, and slot 10 is what
+// takes the button back out of MENU_FRESH. Every menu assertion above therefore
+// runs against a column that still has it.
+//
+// The face is fetched from joseprio.github.io, so what is checked here is the
+// RULE landing in the sheet and the preference sticking — not glyphs, which
+// would make the suite need the network.
+const fontRule = () =>
+  evalJs(`/@font-face[^}]*woff2/.test(document.getElementById('st').textContent)`);
+if (!GOLFBUILD) {
+  console.log("skip 5 emoji-font checks — this build has no hosted font to load");
+} else {
+await reset();
+await key("Escape");
+check("font: the shipping build offers the font at the TOP of the menu, and asks for nothing",
+  (await evalJs(`document.querySelector('#mu button').textContent`)) === "Load emoji font" &&
+  !(await fontRule()));
+await evalJs(`[...document.querySelectorAll('#mu button')].find(b => b.textContent === 'Load emoji font').click()`);
+check("font: one press appends the @font-face — no arming, nothing destructive to confirm",
+  await fontRule());
+check("font: and takes its own button out of the column, leaving the menu open",
+  !(await evalJs(`[...document.querySelectorAll('#mu button')].some(b => b.textContent === 'Load emoji font')`)) &&
+  (await state()).phase === "menu");
+check("font: the preference is stored", (await cellGet(SLOT.emojiFont)) === 1);
+// reset() reloads the page, so this is a genuinely fresh boot reading slot 10
+await reset();
+check("font: a later run loads it with no button and no second ask",
+  (await fontRule()) &&
+  !(await evalJs(`[...document.querySelectorAll('#mu button')].some(b => b.textContent === 'Load emoji font')`)));
+}
 
 check("no uncaught exceptions", t.exceptions.length === 0);
 if (t.exceptions.length) console.log(t.exceptions.join("\n"));

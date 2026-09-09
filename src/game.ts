@@ -58,11 +58,16 @@ for (const ch of JSON.stringify(Object.entries(RECIPE).sort()) + ELEMENTS.length
 }
 const TREE = vh.toString(36);
 // ONE localStorage entry, sections by index: [tree, run, bestQuest, bestFull,
-// codex, mute, bestPeace, bestColor, bestCowa, bestMatter]. The tree hash
-// rides in slot 0 instead
+// codex, mute, bestPeace, bestColor, bestCowa, bestMatter, emojiFont]. The
+// last one, like mute, is a SETTING rather than progress: neither is in the
+// list Reset everything clears, nor in the list a tree-hash mismatch drops.
+// Slot 10 is declared in src/css.ts, which is the module that appends the
+// @font-face and the one that reads it back at boot. The tree hash rides in
+// slot 0 instead
 // of being suffixed onto key names — a mismatch drops the bests and keeps
 // everything else, which is what the suffixed keys did by orphaning them.
 import { cell, put } from "./store";
+import { S_FONT, loadEmojiFont } from "./css";
 const S_RUN = 1, S_QUEST = 2, S_FULL = 3, S_CODEX = 4, S_PEACE = 6, S_COLOR = 7, S_COWA = 8, S_MATTER = 9;
 if (cell[0] !== TREE) { cell[0] = TREE; cell[S_QUEST] = cell[S_FULL] = cell[S_PEACE] = cell[S_COLOR] = cell[S_COWA] = cell[S_MATTER] = 0; }
 
@@ -227,11 +232,20 @@ function addTile(id: string): void {
   const el = BY_ID[id];
   const d = document.createElement("div");
   d.className = "t";
-  d.dataset.id = id;
+  // THE TILE'S ELEMENT ID, on a QUOTED expando rather than in a data attribute.
+  // `d.dataset.id = id` is 7 B more, all of it in two long property names that
+  // nothing but this pair of sites reads. Quoted, and that is the load-bearing
+  // part: closure ADVANCED runs on the shipping build and NOT on the cut, so an
+  // unquoted `.z` would be mangled in one and left alone in the other, and
+  // check.mjs drives both — it finds tiles by `e.z`, which a quoted access
+  // keeps spelled `z` everywhere. The cost is that the id is no longer visible
+  // in a DOM inspector; `[...document.querySelectorAll('.t')].find(e => e.z ===
+  // "cloud")` is the console equivalent.
+  (d as any)["z"] = id;
   d.innerHTML = '<div class=o>' + iconHtml(el) + '</div><div class=n>' + el.n;
   const i = order.length;
   d.onclick = () => {
-    if (performance.now() < clickGuard) return; // that click ended a drag
+    if (Date.now() < clickGuard) return;    // that click ended a drag
     padMode = false;
     renderFocus();
     selectAt(i);
@@ -350,7 +364,15 @@ let dragging = false;       // true once the tile is lifted
 let ghost: HTMLElement | null = null;
 let dropEl: HTMLElement | null = null;
 let pressTimer = 0;
-let clickGuard = 0;         // clicks before this timestamp ended a drag, not a select
+// Clicks before this timestamp ended a drag, not a select. Date.now() rather
+// than performance.now(), which is 7 characters longer at each of the two sites
+// that touch it: the two are a MATCHED PAIR — one sets `now + 350`, the other
+// compares against it, and the value is never held against an rAF timestamp or
+// anything else — so the clock they share only has to agree with itself. What
+// that gives up is monotonicity, and the price of a wall-clock jump inside a
+// 350 ms window is one click that selects when it should not, or does not when
+// it should. The 0 initial value reads the same to both: no guard is up.
+let clickGuard = 0;
 // The pick a lift suspended. A drag has to clear sel/held to keep the board
 // readable while the ghost is out, but a drag that comes back to where it
 // started is not a drag at all — the player changed their mind — so the pick
@@ -435,8 +457,8 @@ function onPressUp(e: PointerEvent): void {
   const t = tileAt(lastX, lastY);
   const idx = pressIdx;     // cancelPress() clears it, and the self-drop needs it
   const srcId = order[idx];
-  const dstId = t ? t.dataset.id : undefined;
-  clickGuard = performance.now() + 350;
+  const dstId = t ? (t as any)["z"] as string : undefined;
+  clickGuard = Date.now() + 350;
   cancelPress();
   if (dstId && dstId !== srcId) {
     // A LOCK SURVIVES EVERY MIX — that is the whole thing a lock buys, and it
@@ -849,9 +871,23 @@ function fireworks(span: number): void {
       }
       next = at + 0.12 + Math.random() * 0.12;
     }
-    g.globalAlpha = 1;
-    g.fillStyle = "#0004";
+    // THE TRAIL FADE, and it erases alpha rather than painting black over it.
+    // This was `globalAlpha = 1; fillStyle = "#0004"; fillRect(...)` — a 27%
+    // near-black wash over the whole canvas each frame, which is what turns the
+    // 2x2 sparks into comets. It also accumulated: ~15 frames in, the canvas
+    // was solid black, sitting on top of .v's #001c veil and hiding the very
+    // board the veil is 80% opaque in order to show. destination-out reduces
+    // what is already there instead of adding to it, so the comets survive and
+    // the veil stays translucent.
+    // In this mode the fill's COLOUR is ignored and only its alpha counts, so
+    // the fillStyle line is gone and globalAlpha carries the .27 by itself —
+    // whatever colour the last spark left behind is fine to erase with. The op
+    // has to go back to source-over before the sparks are drawn, and the second
+    // mention of that long property name costs almost nothing packed.
+    g.globalAlpha = .27;
+    g.globalCompositeOperation = "destination-out";
     g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = "source-over";
     for (let i = P.length; i--;) {
       const p = P[i];
       if ((p.t -= dt) < 0) { P.splice(i, 1); continue; }
@@ -1047,14 +1083,35 @@ function continueGame(): void {
   closeMenu();
   hud();
 }
+// The button's half of the emoji font. Fetching it AND remembering that you
+// asked are both src/css.ts's business — the write is in loadEmojiFont because
+// folding it in there measured 2 B cheaper than a put() of its own here, and
+// the redundant re-write on every later boot costs nothing. What is left is the
+// repaint, which is what removes the button: the entry's own predicate answers
+// false from here on.
+function loadFont(): void {
+  loadEmojiFont();
+  paintMenu();
+}
 // the index is handed to the handler so the confirm flow never hardcodes a
-// position — reorder this list freely
-const MENU: [string, (i: number) => void][] = [
-  ["Continue", continueGame],
+// position — reorder this list freely.
+// The third slot is an OPTIONAL PREDICATE: an entry with one is painted only
+// when it answers true. Continue used to be a hardcoded `if (!i)` in paintMenu,
+// which quietly meant "whatever is first"; a second conditional entry that has
+// to sit ABOVE it is what made that a bug waiting to happen rather than a
+// shortcut.
+const MENU: [string, (i: number) => void, (() => unknown)?][] = [
+  ["Continue", continueGame, inRun],
   ["New game", newGame],
   ["Quests", () => openPanel("Quests", questsHtml())],
   ["Encyclopedia", () => openPanel("Encyclopedia", encycloHtml())],
 ];
+// THE SHIPPING BUILD ONLY, and at the TOP: it is the one entry that is an
+// offer rather than a move, and it is gone for good after one press. The cut
+// carries its own font in the zip and a dev build has none, so in both
+// __GOLF__ is a literal false and closure deletes the entry, loadFont, and
+// with them src/css.ts's loader.
+if (__GOLF__) MENU.unshift(["Load emoji font", loadFont, () => !cell[S_FONT]]);
 // DEVELOPMENT TOOLS, and not in the shipped build. Pushed inside an if rather
 // than spread into the list above so that with __DEV__ a literal false closure
 // deletes the branch, then finds unlockAll and wipeAll unreferenced and deletes
@@ -1065,8 +1122,8 @@ if (__DEV__) MENU.push(["Unlock all", unlockAll], ["Reset everything", wipeAll])
 function paintMenu(): void {
   mu.innerHTML = "";
   let n = 0;
-  MENU.map(([label, fn], i) => {
-    if (!i && !inRun()) return;
+  MENU.map(([label, fn, show]) => {
+    if (show && !show()) return;
     const j = n++;
     const b = document.createElement("button");
     b.innerHTML = label;
