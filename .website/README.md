@@ -1,4 +1,8 @@
 ---
+genres:
+  - puzzle
+  - casual
+  - educational
 directors_cut: https://joseprio.github.io/color-alchemy/dist/director.html
 # See github.com/js13kGames/hello-world for supported frontmatter
 ---
